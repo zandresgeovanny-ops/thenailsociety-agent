@@ -11,6 +11,7 @@ import os
 import json
 import yaml
 import logging
+import httpx
 from anthropic import AsyncAnthropic
 from dotenv import load_dotenv
 
@@ -20,7 +21,13 @@ load_dotenv()
 logger = logging.getLogger("agentkit")
 
 # Cliente de Anthropic
-client = AsyncAnthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
+# Se fuerza IPv4 (local_address="0.0.0.0") porque algunos hosts (ej. Railway)
+# no tienen salida IPv6 y la conexión a api.anthropic.com falla con "Connection error"
+# si se intenta primero por IPv6.
+client = AsyncAnthropic(
+    api_key=os.getenv("ANTHROPIC_API_KEY"),
+    http_client=httpx.AsyncClient(transport=httpx.AsyncHTTPTransport(local_address="0.0.0.0")),
+)
 
 # Límite de vueltas de uso de herramientas por mensaje (evita loops infinitos)
 MAX_ITERACIONES_TOOLS = 5
