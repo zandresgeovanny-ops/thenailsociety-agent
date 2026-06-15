@@ -1,0 +1,31 @@
+# Configuración del negocio — Generado por AgentKit
+negocio:
+  nombre: "MDnails"
+  descripcion: >
+    Salón de manicura y pedicura. Ofrecemos manicura, cambios de esmalte
+    de uñas, corte y limado de uñas, diseños para uñas y manicura con gel.
+    Ubicado en Blvd Benjamin Hill #3960 local 1, col Pemex, Culiacán,
+    Sinaloa, México, 80180. Instagram: @mdnailscln.
+  horario: "Lunes a Viernes 9:00am a 7:00pm, Sábados 9:00am a 2:00pm"
+  direccion: "Blvd Benjamin Hill #3960 local 1, col Pemex, Culiacán, Sinaloa, México, 80180"
+  contacto: "+52 1 667 428 1696"
+  redes:
+    instagram: "@mdnailscln"
+
+agente:
+  nombre: "MDnails"
+  tono: "amigable y casual"
+  casos_de_uso:
+    - "Responder preguntas frecuentes"
+    - "Agendar citas o reservaciones"
+
+servicios:
+  - "Manicura"
+  - "Cambios de esmalte de uñas"
+  - "Corte y limado de uñas"
+  - "Diseños para uñas"
+  - "Manicura con gel"
+
+metadata:
+  creado: "2026-06-14"
+  version: "1.0"
