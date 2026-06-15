@@ -129,5 +129,5 @@ async def generar_respuesta(mensaje: str, historial: list[dict], telefono: str) 
         return obtener_mensaje_error()
 
     except Exception as e:
-        logger.error(f"Error Claude API: {e}")
+        logger.error(f"Error Claude API: {type(e).__name__}: {e} | causa: {type(e.__cause__).__name__}: {e.__cause__}")
         return obtener_mensaje_error()
