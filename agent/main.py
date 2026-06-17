@@ -16,6 +16,7 @@ from dotenv import load_dotenv
 from agent.brain import generar_respuesta
 from agent.memory import inicializar_db, guardar_mensaje, obtener_historial
 from agent.providers import obtener_proveedor
+from agent.panel import router as panel_router
 
 load_dotenv()
 
@@ -45,6 +46,9 @@ app = FastAPI(
     version="1.0.0",
     lifespan=lifespan
 )
+
+# Panel de administración de citas (dashboard web protegido con contraseña)
+app.include_router(panel_router)
 
 
 @app.get("/")

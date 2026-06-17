@@ -211,6 +211,72 @@ async def guardar_cita(
         return {"id": str(cita.id), "inicia_en": cita.inicia_en.isoformat(), "estado": cita.estado}
 
 
+# ════════════════════════════════════════════════════════════
+# Funciones para el panel de administración (dashboard)
+# ════════════════════════════════════════════════════════════
+async def listar_citas() -> list[dict]:
+    """Lista todas las citas con datos de cliente, servicio y empleada (para el panel)."""
+    async with async_session() as session:
+        query = (
+            select(Cita, Cliente, Servicio.nombre, Empleado.nombre)
+            .join(Cliente, Cita.cliente_id == Cliente.id)
+            .outerjoin(Servicio, Cita.servicio_id == Servicio.id)
+            .outerjoin(Empleado, Cita.empleado_id == Empleado.id)
+            .order_by(Cita.inicia_en.asc())
+        )
+        result = await session.execute(query)
+        citas = []
+        for cita, cliente, servicio_nombre, empleado_nombre in result.all():
+            citas.append({
+                "id": str(cita.id),
+                "cliente": cliente.nombre or "Sin nombre",
+                "telefono": cliente.telefono,
+                "servicio": servicio_nombre or "—",
+                "inicia_en": cita.inicia_en.isoformat(),
+                "termina_en": cita.termina_en.isoformat() if cita.termina_en else None,
+                "estado": cita.estado,
+                "empleado_id": str(cita.empleado_id) if cita.empleado_id else None,
+                "empleado": empleado_nombre,
+                "notas": cita.notas,
+            })
+        return citas
+
+
+async def listar_empleados() -> list[dict]:
+    """Lista las empleadas activas del salón."""
+    async with async_session() as session:
+        query = select(Empleado).where(Empleado.activo.is_(True)).order_by(Empleado.nombre)
+        result = await session.execute(query)
+        return [{"id": str(e.id), "nombre": e.nombre} for e in result.scalars().all()]
+
+
+async def crear_empleado(nombre: str) -> dict:
+    """Registra una nueva empleada."""
+    async with async_session() as session:
+        emp = Empleado(nombre=nombre)
+        session.add(emp)
+        await session.commit()
+        return {"id": str(emp.id), "nombre": emp.nombre}
+
+
+async def actualizar_cita(
+    cita_id: str,
+    estado: str | None = None,
+    empleado_id: str | None = None,
+) -> bool:
+    """Actualiza el estado y/o la empleada asignada de una cita. Devuelve False si no existe."""
+    async with async_session() as session:
+        cita = await session.get(Cita, uuid.UUID(cita_id))
+        if cita is None:
+            return False
+        if estado is not None:
+            cita.estado = estado
+        if empleado_id is not None:
+            cita.empleado_id = uuid.UUID(empleado_id) if empleado_id else None
+        await session.commit()
+        return True
+
+
 async def obtener_citas(telefono: str) -> list[dict]:
     """Recupera las citas de un cliente (con el nombre del servicio)."""
     async with async_session() as session:
