@@ -11,6 +11,8 @@ import os
 import json
 import yaml
 import logging
+from datetime import datetime
+from zoneinfo import ZoneInfo
 from anthropic import AsyncAnthropic
 from dotenv import load_dotenv
 
@@ -24,6 +26,34 @@ client = AsyncAnthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
 
 # Límite de vueltas de uso de herramientas por mensaje (evita loops infinitos)
 MAX_ITERACIONES_TOOLS = 5
+
+# Zona horaria del negocio (Culiacán, Sinaloa). Se usa para que el agente
+# sepa la fecha/hora real al interpretar "hoy", "mañana", "el viernes", etc.
+ZONA_HORARIA = ZoneInfo("America/Mazatlan")
+
+DIAS_SEMANA = ["lunes", "martes", "miércoles", "jueves", "viernes", "sábado", "domingo"]
+MESES = ["enero", "febrero", "marzo", "abril", "mayo", "junio", "julio",
+         "agosto", "septiembre", "octubre", "noviembre", "diciembre"]
+
+
+def construir_contexto_temporal() -> str:
+    """
+    Genera un bloque de contexto con la fecha y hora actual en la zona horaria
+    del negocio. Se añade al system prompt en cada llamada para que el agente
+    pueda calcular fechas reales al agendar citas y nunca las invente.
+    """
+    ahora = datetime.now(ZONA_HORARIA)
+    dia = DIAS_SEMANA[ahora.weekday()]
+    return (
+        "## Fecha y hora actual (referencia obligatoria)\n"
+        f"Hoy es {dia}, {ahora.day} de {MESES[ahora.month - 1]} de {ahora.year}.\n"
+        f"Fecha de hoy en formato ISO: {ahora.strftime('%Y-%m-%d')}.\n"
+        f"Hora local de Culiacán: {ahora.strftime('%H:%M')}.\n"
+        "Usa SIEMPRE esta fecha como referencia para interpretar expresiones como "
+        "\"hoy\", \"mañana\", \"pasado mañana\", \"el viernes\" o \"la próxima semana\". "
+        "Al agendar una cita, calcula la fecha exacta en formato YYYY-MM-DD a partir de aquí. "
+        "NUNCA inventes ni asumas una fecha distinta a la que se deduce de este dato."
+    )
 
 
 def cargar_config_prompts() -> dict:
@@ -71,7 +101,8 @@ async def generar_respuesta(mensaje: str, historial: list[dict], telefono: str) 
     if not mensaje or len(mensaje.strip()) < 2:
         return obtener_mensaje_fallback()
 
-    system_prompt = cargar_system_prompt()
+    # System prompt estático (de prompts.yaml) + contexto temporal dinámico
+    system_prompt = cargar_system_prompt() + "\n\n" + construir_contexto_temporal()
 
     # Construir mensajes para la API
     mensajes = []
