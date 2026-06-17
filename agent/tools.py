@@ -8,13 +8,19 @@ horario de atención del salón.
 """
 
 import os
+import uuid
 import yaml
 import logging
-from datetime import datetime
+from datetime import datetime, timedelta
+from zoneinfo import ZoneInfo
 
-from agent.memory import guardar_cita
+from agent.memory import guardar_cita, buscar_o_crear_cliente, listar_servicios
 
 logger = logging.getLogger("agentkit")
+
+# Zona horaria del salón (Culiacán). Las citas se interpretan en hora local
+# y se guardan como timestamp con zona horaria.
+ZONA_HORARIA = ZoneInfo("America/Mazatlan")
 
 
 def cargar_info_negocio() -> dict:
@@ -106,7 +112,35 @@ async def agendar_cita(telefono: str, nombre_cliente: str, servicio: str, fecha:
     if not disponibilidad["disponible"]:
         return {"exito": False, "mensaje": disponibilidad["mensaje"]}
 
-    await guardar_cita(telefono, nombre_cliente, servicio, fecha, hora)
+    # Construir el inicio de la cita en la zona horaria del salón
+    try:
+        inicia_en = datetime.strptime(f"{fecha} {hora}", "%Y-%m-%d %H:%M").replace(tzinfo=ZONA_HORARIA)
+    except ValueError:
+        return {"exito": False, "mensaje": "Formato de fecha u hora inválido. Usa YYYY-MM-DD y HH:MM."}
+
+    # Resolver el servicio contra el catálogo de la DB.
+    # Prioridad: 1) match exacto  2) el nombre más específico (más largo) que coincida,
+    # para no confundir "Manicura" con "Manicura con gel".
+    servicio_id = None
+    duracion = 60
+    objetivo = servicio.lower().strip()
+    servicios = await listar_servicios()
+    exacto = next((s for s in servicios if s["nombre"].lower() == objetivo), None)
+    candidatos = [s for s in servicios if objetivo in s["nombre"].lower() or s["nombre"].lower() in objetivo]
+    elegido = exacto or (max(candidatos, key=lambda s: len(s["nombre"])) if candidatos else None)
+    if elegido:
+        servicio_id = uuid.UUID(elegido["id"])
+        duracion = elegido["duracion_min"]
+
+    termina_en = inicia_en + timedelta(minutes=duracion)
+    cliente_id = await buscar_o_crear_cliente(telefono, nombre_cliente)
+    await guardar_cita(
+        cliente_id=cliente_id,
+        servicio_id=servicio_id,
+        inicia_en=inicia_en,
+        termina_en=termina_en,
+        notas=f"Servicio solicitado por el cliente: {servicio}",
+    )
     return {
         "exito": True,
         "mensaje": f"Cita registrada para {nombre_cliente}: {servicio} el {fecha} a las {hora}. MDnails la confirmará pronto.",
@@ -117,6 +151,14 @@ async def agendar_cita(telefono: str, nombre_cliente: str, servicio: str, fecha:
 # Definición de herramientas para Claude (tool use)
 # ════════════════════════════════════════════════════════════
 TOOLS_CLAUDE = [
+    {
+        "name": "listar_servicios",
+        "description": "Devuelve el catálogo de servicios activos de MDnails (nombre, duración y precio). Úsala cuando el cliente pregunte qué servicios hay o cuánto duran/cuestan.",
+        "input_schema": {
+            "type": "object",
+            "properties": {},
+        },
+    },
     {
         "name": "buscar_en_knowledge",
         "description": "Busca información específica del negocio (servicios, ubicación, redes sociales, políticas, etc.) en los archivos de conocimiento de MDnails.",
@@ -159,6 +201,9 @@ TOOLS_CLAUDE = [
 
 async def ejecutar_herramienta(nombre: str, entrada: dict, telefono: str) -> dict:
     """Ejecuta la herramienta solicitada por Claude y retorna el resultado."""
+    if nombre == "listar_servicios":
+        return {"servicios": await listar_servicios()}
+
     if nombre == "buscar_en_knowledge":
         return {"resultado": buscar_en_knowledge(entrada.get("consulta", ""))}
 
