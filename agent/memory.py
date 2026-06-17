@@ -11,15 +11,22 @@ por llaves foráneas, y las fechas se guardan como timestamp con zona horaria.
 
 import os
 import uuid
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta, time as _time
+from zoneinfo import ZoneInfo
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 from sqlalchemy import (
-    String, Text, DateTime, Integer, Numeric, Boolean, ForeignKey, Uuid, select,
+    String, Text, DateTime, Time, Integer, Numeric, Boolean, ForeignKey, Uuid, select,
 )
 from dotenv import load_dotenv
 
 load_dotenv()
+
+# Zona horaria del salón y parámetros del calendario de reservas
+ZONA_SALON = ZoneInfo("America/Mazatlan")
+PASO_SLOT_MIN = 30  # cada cuántos minutos se ofrece un turno
+# Horario general del salón (respaldo cuando no se elige empleada). 0=Lunes..6=Domingo
+HORARIO_SALON = {0: (9, 19), 1: (9, 19), 2: (9, 19), 3: (9, 19), 4: (9, 19), 5: (9, 14), 6: None}
 
 # ════════════════════════════════════════════════════════════
 # Configuración de la base de datos
@@ -90,6 +97,7 @@ class Servicio(Base):
     duracion_min: Mapped[int] = mapped_column(Integer, default=60)
     precio: Mapped[float | None] = mapped_column(Numeric(10, 2), nullable=True)
     activo: Mapped[bool] = mapped_column(Boolean, default=True)
+    categoria_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("categorias.id"), nullable=True)
 
 
 class Empleado(Base):
@@ -99,6 +107,25 @@ class Empleado(Base):
     id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
     nombre: Mapped[str] = mapped_column(String(100))
     activo: Mapped[bool] = mapped_column(Boolean, default=True)
+
+
+class Categoria(Base):
+    """Categoría de servicios (Acrílico, Manicura, Pedicura, Diseño...)."""
+    __tablename__ = "categorias"
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
+    nombre: Mapped[str] = mapped_column(String(100), unique=True)
+
+
+class HorarioEmpleado(Base):
+    """Horario laboral de una empleada para un día de la semana (0=Lunes..6=Domingo)."""
+    __tablename__ = "horarios_empleado"
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
+    empleado_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("empleados.id"))
+    dia_semana: Mapped[int] = mapped_column(Integer)
+    hora_inicio: Mapped[_time] = mapped_column(Time)
+    hora_fin: Mapped[_time] = mapped_column(Time)
 
 
 class Cita(Base):
@@ -114,6 +141,7 @@ class Cita(Base):
     estado: Mapped[str] = mapped_column(String(20), default="pendiente")
     origen: Mapped[str] = mapped_column(String(20), default="whatsapp")
     notas: Mapped[str | None] = mapped_column(Text, nullable=True)
+    precio_cobrado: Mapped[float | None] = mapped_column(Numeric(10, 2), nullable=True)
     creado_en: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_ahora)
 
 
@@ -196,8 +224,13 @@ async def guardar_cita(
     inicia_en: datetime,
     termina_en: datetime | None = None,
     notas: str | None = None,
+    empleado_id: uuid.UUID | None = None,
 ) -> dict:
-    """Registra una cita y devuelve sus datos básicos."""
+    """Registra una cita y devuelve sus datos básicos.
+
+    Si la empleada ya tiene una cita que se solapa, la base de datos rechaza el
+    INSERT (constraint de no-solapamiento) y se propaga una IntegrityError.
+    """
     async with async_session() as session:
         cita = Cita(
             cliente_id=cliente_id,
@@ -205,10 +238,98 @@ async def guardar_cita(
             inicia_en=inicia_en,
             termina_en=termina_en,
             notas=notas,
+            empleado_id=empleado_id,
         )
         session.add(cita)
         await session.commit()
         return {"id": str(cita.id), "inicia_en": cita.inicia_en.isoformat(), "estado": cita.estado}
+
+
+# ════════════════════════════════════════════════════════════
+# Calendario de reservas: catálogo y disponibilidad
+# ════════════════════════════════════════════════════════════
+async def catalogo_servicios() -> list[dict]:
+    """Servicios activos con su categoría (para el portal de reservas)."""
+    async with async_session() as session:
+        query = (
+            select(Servicio, Categoria.nombre)
+            .outerjoin(Categoria, Servicio.categoria_id == Categoria.id)
+            .where(Servicio.activo.is_(True))
+            .order_by(Servicio.nombre)
+        )
+        result = await session.execute(query)
+        return [
+            {
+                "id": str(s.id),
+                "nombre": s.nombre,
+                "categoria": cat or "General",
+                "duracion_min": s.duracion_min,
+                "precio": float(s.precio) if s.precio is not None else None,
+            }
+            for s, cat in result.all()
+        ]
+
+
+async def slots_disponibles(servicio_id: str, empleado_id: str | None, fecha: str) -> list[str]:
+    """
+    Calcula los turnos de inicio disponibles para una fecha dada.
+
+    Considera: la duración del servicio, el horario laboral de la empleada
+    (o el horario general del salón si no se elige empleada), las citas ya
+    ocupadas y descarta los turnos que ya pasaron si la fecha es hoy.
+    """
+    try:
+        dia = datetime.strptime(fecha, "%Y-%m-%d").date()
+    except ValueError:
+        return []
+
+    dow = dia.weekday()  # 0=Lunes..6=Domingo
+
+    async with async_session() as session:
+        servicio = await session.get(Servicio, uuid.UUID(servicio_id))
+        if servicio is None:
+            return []
+        duracion = servicio.duracion_min
+
+        ventanas: list[tuple[_time, _time]] = []   # franjas laborales del día
+        ocupados: list[tuple[datetime, datetime]] = []  # citas ya tomadas
+
+        if empleado_id:
+            eid = uuid.UUID(empleado_id)
+            res_h = await session.execute(
+                select(HorarioEmpleado).where(
+                    HorarioEmpleado.empleado_id == eid,
+                    HorarioEmpleado.dia_semana == dow,
+                )
+            )
+            ventanas = [(h.hora_inicio, h.hora_fin) for h in res_h.scalars().all()]
+
+            res_c = await session.execute(
+                select(Cita).where(Cita.empleado_id == eid, Cita.estado != "cancelada")
+            )
+            for c in res_c.scalars().all():
+                ocupados.append((c.inicia_en, c.termina_en or c.inicia_en))
+        else:
+            rango = HORARIO_SALON.get(dow)
+            if rango:
+                ventanas = [(_time(rango[0]), _time(rango[1]))]
+
+        if not ventanas:
+            return []  # no se trabaja ese día
+
+        ahora = datetime.now(ZONA_SALON)
+        slots: list[str] = []
+        for hora_ini, hora_fin in ventanas:
+            actual = datetime.combine(dia, hora_ini, tzinfo=ZONA_SALON)
+            cierre = datetime.combine(dia, hora_fin, tzinfo=ZONA_SALON)
+            while actual + timedelta(minutes=duracion) <= cierre:
+                fin_slot = actual + timedelta(minutes=duracion)
+                if actual > ahora:  # no ofrecer turnos en el pasado
+                    choca = any(actual < ocu_fin and ocu_ini < fin_slot for ocu_ini, ocu_fin in ocupados)
+                    if not choca:
+                        slots.append(actual.strftime("%H:%M"))
+                actual += timedelta(minutes=PASO_SLOT_MIN)
+        return slots
 
 
 # ════════════════════════════════════════════════════════════
