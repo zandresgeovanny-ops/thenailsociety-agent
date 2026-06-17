@@ -18,6 +18,7 @@ from agent.memory import inicializar_db, guardar_mensaje, obtener_historial
 from agent.providers import obtener_proveedor
 from agent.panel import router as panel_router
 from agent.reservas import router as reservas_router
+from agent.auth import router as auth_router
 
 load_dotenv()
 
@@ -53,6 +54,9 @@ app.include_router(panel_router)
 
 # Portal público de reservas para clientas
 app.include_router(reservas_router)
+
+# Login / logout y autenticación por roles
+app.include_router(auth_router)
 
 
 @app.get("/")

@@ -10,57 +10,49 @@ Acceso de datos del lado del servidor (vía memory.py), que usa la conexión
 directa a Postgres y por lo tanto no depende de las políticas RLS de Supabase.
 """
 
-import os
-import secrets
 import logging
 
-from fastapi import APIRouter, Depends, HTTPException
-from fastapi.security import HTTPBasic, HTTPBasicCredentials
-from fastapi.responses import HTMLResponse
+from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi.responses import HTMLResponse, RedirectResponse
 
 from agent.memory import (
     listar_citas, listar_empleados, crear_empleado, actualizar_cita,
 )
+from agent.auth import usuario_actual, requiere_panel
 
 logger = logging.getLogger("agentkit")
 
 router = APIRouter(prefix="/panel")
-security = HTTPBasic()
-
-PANEL_USER = os.getenv("PANEL_USER", "admin")
-PANEL_PASSWORD = os.getenv("PANEL_PASSWORD", "")
 
 ESTADOS_VALIDOS = {"pendiente", "confirmada", "cancelada", "completada"}
-
-
-def verificar(credenciales: HTTPBasicCredentials = Depends(security)) -> str:
-    """Valida usuario y contraseña. Si PANEL_PASSWORD no está configurada, bloquea el acceso."""
-    user_ok = secrets.compare_digest(credenciales.username, PANEL_USER)
-    pass_ok = bool(PANEL_PASSWORD) and secrets.compare_digest(credenciales.password, PANEL_PASSWORD)
-    if not (user_ok and pass_ok):
-        raise HTTPException(
-            status_code=401,
-            detail="No autorizado",
-            headers={"WWW-Authenticate": "Basic"},
-        )
-    return credenciales.username
 
 
 # ════════════════════════════════════════════════════════════
 # API JSON (consumida por la página)
 # ════════════════════════════════════════════════════════════
+@router.get("/api/yo")
+async def api_yo(user: dict = Depends(requiere_panel)):
+    """Datos del usuario en sesión, para que la página adapte permisos."""
+    return {"nombre": user["nombre"], "rol": user["rol"], "empleado_id": user["empleado_id"]}
+
+
 @router.get("/api/citas")
-async def api_citas(_: str = Depends(verificar)):
+async def api_citas(user: dict = Depends(requiere_panel)):
+    # La empleada solo ve su propia agenda; el admin ve todas las citas.
+    if user["rol"] == "empleada":
+        return await listar_citas(empleado_filtro=user["empleado_id"])
     return await listar_citas()
 
 
 @router.get("/api/empleados")
-async def api_empleados(_: str = Depends(verificar)):
+async def api_empleados(_: dict = Depends(requiere_panel)):
     return await listar_empleados()
 
 
 @router.post("/api/empleados")
-async def api_crear_empleado(payload: dict, _: str = Depends(verificar)):
+async def api_crear_empleado(payload: dict, user: dict = Depends(requiere_panel)):
+    if user["rol"] != "admin":
+        raise HTTPException(status_code=403, detail="Solo el administrador puede crear empleadas")
     nombre = (payload.get("nombre") or "").strip()
     if not nombre:
         raise HTTPException(status_code=400, detail="El nombre es obligatorio")
@@ -68,7 +60,7 @@ async def api_crear_empleado(payload: dict, _: str = Depends(verificar)):
 
 
 @router.post("/api/citas/{cita_id}/estado")
-async def api_estado(cita_id: str, payload: dict, _: str = Depends(verificar)):
+async def api_estado(cita_id: str, payload: dict, _: dict = Depends(requiere_panel)):
     estado = payload.get("estado")
     if estado not in ESTADOS_VALIDOS:
         raise HTTPException(status_code=400, detail="Estado inválido")
@@ -78,7 +70,9 @@ async def api_estado(cita_id: str, payload: dict, _: str = Depends(verificar)):
 
 
 @router.post("/api/citas/{cita_id}/empleado")
-async def api_empleado(cita_id: str, payload: dict, _: str = Depends(verificar)):
+async def api_empleado(cita_id: str, payload: dict, user: dict = Depends(requiere_panel)):
+    if user["rol"] != "admin":
+        raise HTTPException(status_code=403, detail="Solo el administrador puede reasignar empleadas")
     empleado_id = payload.get("empleado_id") or None
     if not await actualizar_cita(cita_id, empleado_id=empleado_id):
         raise HTTPException(status_code=404, detail="Cita no encontrada")
@@ -86,11 +80,16 @@ async def api_empleado(cita_id: str, payload: dict, _: str = Depends(verificar))
 
 
 # ════════════════════════════════════════════════════════════
-# Página del panel
+# Página del panel (exige sesión; si no hay, manda al login)
 # ════════════════════════════════════════════════════════════
 @router.get("", response_class=HTMLResponse)
 @router.get("/", response_class=HTMLResponse)
-async def panel_home(_: str = Depends(verificar)):
+async def panel_home(request: Request):
+    user = await usuario_actual(request)
+    if not user:
+        return RedirectResponse(url="/login", status_code=302)
+    if user["rol"] not in ("admin", "empleada"):
+        raise HTTPException(status_code=403, detail="Sin acceso al panel")
     return _PAGINA_HTML
 
 
@@ -135,6 +134,11 @@ _PAGINA_HTML = """<!DOCTYPE html>
   .marca h1{font-family:'Playfair Display',serif; font-size:20px; margin:0; line-height:1}
   .marca span{font-size:12px; color:var(--gris)}
   .vivo{margin-left:auto; display:flex; align-items:center; gap:8px; font-size:12px; color:var(--gris)}
+  .usr{display:flex; align-items:center; gap:10px; font-size:13px}
+  .usr b{color:var(--tinta)} .usr .rol{font-size:11px; color:var(--gris)}
+  .salir{color:var(--rosa-2); text-decoration:none; font-weight:600; border:1px solid var(--rosa-borde); padding:6px 12px; border-radius:9px; transition:.15s}
+  .salir:hover{background:var(--rosa-suave)}
+  .oculto{display:none !important}
   .dot{width:9px; height:9px; border-radius:50%; background:var(--ok); box-shadow:0 0 0 0 rgba(31,157,107,.6); animation:pulse 1.8s infinite}
   /* ---------- Layout ---------- */
   main{max-width:1180px; margin:0 auto; padding:26px 28px 60px}
@@ -212,6 +216,7 @@ _PAGINA_HTML = """<!DOCTYPE html>
     <div><h1>MDnails</h1><span>Panel de citas</span></div>
   </div>
   <div class="vivo"><span class="dot"></span><span id="vivoTxt">conectando…</span></div>
+  <div class="usr"><span><b id="usrNombre">…</b><div class="rol" id="usrRol"></div></span><a class="salir" href="/logout">Salir</a></div>
 </header>
 
 <main>
@@ -228,7 +233,7 @@ _PAGINA_HTML = """<!DOCTYPE html>
       <button class="chip" data-f="pendientes" onclick="setFiltro('pendientes')">Pendientes</button>
       <button class="chip" data-f="todas" onclick="setFiltro('todas')">Todas</button>
     </div>
-    <button class="btn primary" onclick="abrirModal()">+ Nueva empleada</button>
+    <button class="btn primary" id="btnEmpleada" onclick="abrirModal()">+ Nueva empleada</button>
   </div>
 
   <div class="tarjeta">
@@ -258,7 +263,7 @@ _PAGINA_HTML = """<!DOCTYPE html>
 <script>
 const API = "/panel/api";              // rutas ABSOLUTAS (funcionan con o sin barra final)
 const TZ  = "America/Mazatlan";
-let filtro = "hoy", empleados = [], citas = [], huella = "";
+let filtro = "hoy", empleados = [], citas = [], huella = "", esAdmin = true;
 
 const ESTADOS = ["pendiente","confirmada","cancelada","completada"];
 
@@ -346,7 +351,7 @@ function pintar(){
       <td><div class="hora-h">${t.h}</div><div class="hora-d">${t.d}</div></td>
       <td><div class="cli">${c.cliente}</div><div class="tel">${c.telefono}</div></td>
       <td>${c.servicio}</td>
-      <td><select onchange="cambiarEmpleada('${c.id}',this.value)">${optsEmpleadas(c.empleado_id)}</select></td>
+      <td><select onchange="cambiarEmpleada('${c.id}',this.value)" ${esAdmin?'':'disabled'}>${optsEmpleadas(c.empleado_id)}</select></td>
       <td><div class="estado-cell">
         <span class="badge b-${c.estado}">${c.estado}</span>
         <select onchange="cambiarEstado('${c.id}',this.value)">${optsEstado(c.estado)}</select>
@@ -369,6 +374,14 @@ async function cargar(forzar){
 }
 
 (async function init(){
+  // Identificar al usuario en sesión; si no hay, al login
+  try{
+    const yo = await api("/yo");
+    esAdmin = yo.rol === "admin";
+    document.getElementById("usrNombre").textContent = yo.nombre || "Usuaria";
+    document.getElementById("usrRol").textContent = esAdmin ? "Administrador" : "Empleada";
+    if(!esAdmin) document.getElementById("btnEmpleada").classList.add("oculto");
+  }catch(e){ location.href = "/login"; return; }
   // skeleton inicial
   document.getElementById("tbody").innerHTML = Array.from({length:3}).map(()=>
     `<tr><td colspan="5"><div class="skel"></div></td></tr>`).join("");

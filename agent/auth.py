@@ -1,0 +1,165 @@
+# agent/auth.py — Autenticación y roles (admin / empleada / clienta)
+# Generado por AgentKit
+
+"""
+Autenticación propia, del lado del servidor:
+- Contraseñas hasheadas con PBKDF2-SHA256 (librería estándar, sin dependencias).
+- Sesión en una cookie firmada con HMAC (no se puede falsificar sin la SECRET_KEY).
+- Dependencias para proteger rutas y exigir un rol.
+
+La SECRET_KEY debe configurarse en producción (variable de entorno SECRET_KEY).
+"""
+
+import os
+import hmac
+import base64
+import hashlib
+import secrets
+import logging
+
+from fastapi import APIRouter, Request, HTTPException
+from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
+
+from agent.memory import obtener_usuario_por_email, obtener_usuario_por_id
+
+logger = logging.getLogger("agentkit")
+router = APIRouter()
+
+# Clave para firmar la cookie de sesión. ¡Configurar SECRET_KEY en Railway!
+SECRET_KEY = os.getenv("SECRET_KEY") or os.getenv("PANEL_PASSWORD") or "agentkit-dev-secret-cambiar"
+COOKIE = "sesion"
+ES_PROD = os.getenv("ENVIRONMENT", "development") == "production"
+ITERACIONES = 200_000
+
+
+# ---------- Hash de contraseñas ----------
+def hash_password(password: str) -> str:
+    salt = secrets.token_bytes(16)
+    dk = hashlib.pbkdf2_hmac("sha256", password.encode(), salt, ITERACIONES)
+    return f"pbkdf2_sha256${ITERACIONES}${base64.b64encode(salt).decode()}${base64.b64encode(dk).decode()}"
+
+
+def verify_password(password: str, almacenado: str) -> bool:
+    try:
+        _, iteraciones, salt_b64, hash_b64 = almacenado.split("$")
+        salt = base64.b64decode(salt_b64)
+        esperado = base64.b64decode(hash_b64)
+        dk = hashlib.pbkdf2_hmac("sha256", password.encode(), salt, int(iteraciones))
+        return hmac.compare_digest(dk, esperado)
+    except Exception:
+        return False
+
+
+# ---------- Cookie de sesión firmada ----------
+def _firmar(uid: str) -> str:
+    firma = hmac.new(SECRET_KEY.encode(), uid.encode(), hashlib.sha256).hexdigest()
+    return f"{uid}.{firma}"
+
+
+def _leer_token(token: str) -> str | None:
+    try:
+        uid, firma = token.rsplit(".", 1)
+        esperada = hmac.new(SECRET_KEY.encode(), uid.encode(), hashlib.sha256).hexdigest()
+        return uid if hmac.compare_digest(esperada, firma) else None
+    except Exception:
+        return None
+
+
+async def usuario_actual(request: Request) -> dict | None:
+    """Devuelve el usuario de la sesión (o None si no hay sesión válida)."""
+    token = request.cookies.get(COOKIE)
+    if not token:
+        return None
+    uid = _leer_token(token)
+    return await obtener_usuario_por_id(uid) if uid else None
+
+
+async def requiere_panel(request: Request) -> dict:
+    """Dependencia para la API del panel: exige sesión de admin o empleada."""
+    user = await usuario_actual(request)
+    if not user:
+        raise HTTPException(status_code=401, detail="Sesión requerida")
+    if user["rol"] not in ("admin", "empleada"):
+        raise HTTPException(status_code=403, detail="Sin permiso")
+    return user
+
+
+# ---------- Rutas de login / logout ----------
+@router.post("/login")
+async def login(payload: dict):
+    email = (payload.get("email") or "").strip()
+    password = payload.get("password") or ""
+    user = await obtener_usuario_por_email(email)
+    if not user or not verify_password(password, user["password_hash"]):
+        raise HTTPException(status_code=401, detail="Correo o contraseña incorrectos")
+
+    resp = JSONResponse({"ok": True, "rol": user["rol"], "nombre": user["nombre"]})
+    resp.set_cookie(
+        COOKIE, _firmar(user["id"]),
+        httponly=True, secure=ES_PROD, samesite="lax", max_age=60 * 60 * 12,  # 12 h
+    )
+    return resp
+
+
+@router.get("/logout")
+async def logout():
+    resp = RedirectResponse(url="/login", status_code=302)
+    resp.delete_cookie(COOKIE)
+    return resp
+
+
+@router.get("/login", response_class=HTMLResponse)
+async def pagina_login():
+    return _PAGINA_LOGIN
+
+
+_PAGINA_LOGIN = """<!DOCTYPE html>
+<html lang="es"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>MDnails · Iniciar sesión</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Playfair+Display:wght@600;700&display=swap" rel="stylesheet">
+<style>
+  :root{--rosa:#d6447a;--rosa-2:#b83267;--tinta:#2a2230;--gris:#9a8f97;--linea:#f0e6ec}
+  *{box-sizing:border-box}
+  body{margin:0;min-height:100vh;display:grid;place-items:center;font-family:'Inter',system-ui,sans-serif;color:var(--tinta);
+    background:radial-gradient(700px 400px at 50% -10%,#fbe9f1,transparent 60%),#fbf7f9}
+  .card{background:#fff;border:1px solid var(--linea);border-radius:22px;box-shadow:0 16px 50px rgba(120,40,80,.14);padding:34px 30px;width:min(380px,92vw);animation:rise .4s ease both}
+  .logo{width:58px;height:58px;border-radius:17px;display:grid;place-items:center;background:linear-gradient(135deg,var(--rosa),var(--rosa-2));color:#fff;font-size:28px;margin:0 auto 16px;box-shadow:0 8px 20px rgba(184,50,103,.35)}
+  h1{font-family:'Playfair Display',serif;font-size:22px;text-align:center;margin:0 0 4px}
+  .sub{text-align:center;color:var(--gris);font-size:13.5px;margin:0 0 22px}
+  label{font-size:13px;font-weight:600;color:var(--gris);display:block;margin-bottom:6px}
+  input{width:100%;padding:12px 13px;border:1.5px solid var(--linea);border-radius:12px;font-family:inherit;font-size:15px;margin-bottom:14px}
+  input:focus{outline:none;border-color:var(--rosa)}
+  button{width:100%;border:none;border-radius:13px;padding:13px;font-weight:700;font-size:15px;cursor:pointer;color:#fff;font-family:inherit;background:linear-gradient(135deg,var(--rosa),var(--rosa-2));box-shadow:0 6px 16px rgba(184,50,103,.35);transition:.15s}
+  button:disabled{opacity:.5}
+  .err{background:#fbdada;color:#a32222;border-radius:10px;padding:10px 12px;font-size:13px;margin-bottom:14px;display:none}
+  @keyframes rise{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:none}}
+</style></head>
+<body>
+<form class="card" onsubmit="entrar(event)">
+  <div class="logo">💅</div>
+  <h1>MDnails</h1>
+  <p class="sub">Panel de gestión · inicia sesión</p>
+  <div class="err" id="err"></div>
+  <label>Correo</label>
+  <input type="email" id="email" placeholder="tucorreo@mdnails.com" required autofocus>
+  <label>Contraseña</label>
+  <input type="password" id="password" placeholder="••••••••" required>
+  <button id="btn" type="submit">Entrar</button>
+</form>
+<script>
+async function entrar(e){
+  e.preventDefault();
+  const btn=document.getElementById("btn"); const err=document.getElementById("err");
+  btn.disabled=true; btn.textContent="Entrando..."; err.style.display="none";
+  try{
+    const r=await fetch("/login",{method:"POST",headers:{"Content-Type":"application/json"},
+      body:JSON.stringify({email:document.getElementById("email").value,password:document.getElementById("password").value})});
+    if(!r.ok){ const d=await r.json().catch(()=>({})); throw new Error(d.detail||"Error"); }
+    location.href="/panel";
+  }catch(ex){ err.textContent=ex.message; err.style.display="block"; btn.disabled=false; btn.textContent="Entrar"; }
+}
+</script>
+</body></html>
+"""

@@ -128,6 +128,20 @@ class HorarioEmpleado(Base):
     hora_fin: Mapped[_time] = mapped_column(Time)
 
 
+class Usuario(Base):
+    """Usuario del sistema con rol (admin / empleada / clienta)."""
+    __tablename__ = "usuarios"
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
+    email: Mapped[str] = mapped_column(String(150), unique=True)
+    password_hash: Mapped[str] = mapped_column(Text)
+    rol: Mapped[str] = mapped_column(String(20))
+    nombre: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    empleado_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("empleados.id"), nullable=True)
+    activo: Mapped[bool] = mapped_column(Boolean, default=True)
+    creado_en: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_ahora)
+
+
 class Cita(Base):
     """Cita agendada, relacionada con cliente, servicio y (opcional) empleada."""
     __tablename__ = "citas"
@@ -335,8 +349,12 @@ async def slots_disponibles(servicio_id: str, empleado_id: str | None, fecha: st
 # ════════════════════════════════════════════════════════════
 # Funciones para el panel de administración (dashboard)
 # ════════════════════════════════════════════════════════════
-async def listar_citas() -> list[dict]:
-    """Lista todas las citas con datos de cliente, servicio y empleada (para el panel)."""
+async def listar_citas(empleado_filtro: str | None = None) -> list[dict]:
+    """Lista citas con datos de cliente, servicio y empleada (para el panel).
+
+    Si se pasa empleado_filtro (id), devuelve solo las citas de esa empleada
+    (se usa para que cada empleada vea únicamente su agenda).
+    """
     async with async_session() as session:
         query = (
             select(Cita, Cliente, Servicio.nombre, Empleado.nombre)
@@ -345,6 +363,8 @@ async def listar_citas() -> list[dict]:
             .outerjoin(Empleado, Cita.empleado_id == Empleado.id)
             .order_by(Cita.inicia_en.asc())
         )
+        if empleado_filtro:
+            query = query.where(Cita.empleado_id == uuid.UUID(empleado_filtro))
         result = await session.execute(query)
         citas = []
         for cita, cliente, servicio_nombre, empleado_nombre in result.all():
@@ -378,6 +398,48 @@ async def crear_empleado(nombre: str) -> dict:
         session.add(emp)
         await session.commit()
         return {"id": str(emp.id), "nombre": emp.nombre}
+
+
+async def crear_usuario(email: str, password_hash: str, rol: str,
+                        nombre: str | None = None, empleado_id: str | None = None) -> dict:
+    """Crea un usuario del sistema con su contraseña ya hasheada."""
+    async with async_session() as session:
+        u = Usuario(
+            email=email.lower().strip(),
+            password_hash=password_hash,
+            rol=rol,
+            nombre=nombre,
+            empleado_id=uuid.UUID(empleado_id) if empleado_id else None,
+        )
+        session.add(u)
+        await session.commit()
+        return {"id": str(u.id), "email": u.email, "rol": u.rol}
+
+
+def _usuario_dict(u: "Usuario") -> dict:
+    return {
+        "id": str(u.id), "email": u.email, "password_hash": u.password_hash,
+        "rol": u.rol, "nombre": u.nombre,
+        "empleado_id": str(u.empleado_id) if u.empleado_id else None,
+        "activo": u.activo,
+    }
+
+
+async def obtener_usuario_por_email(email: str) -> dict | None:
+    """Busca un usuario activo por email (para el login)."""
+    async with async_session() as session:
+        result = await session.execute(
+            select(Usuario).where(Usuario.email == email.lower().strip(), Usuario.activo.is_(True))
+        )
+        u = result.scalar_one_or_none()
+        return _usuario_dict(u) if u else None
+
+
+async def obtener_usuario_por_id(usuario_id: str) -> dict | None:
+    """Carga un usuario por id (para validar la sesión)."""
+    async with async_session() as session:
+        u = await session.get(Usuario, uuid.UUID(usuario_id))
+        return _usuario_dict(u) if (u and u.activo) else None
 
 
 async def actualizar_cita(
