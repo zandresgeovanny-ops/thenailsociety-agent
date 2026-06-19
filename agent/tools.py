@@ -14,7 +14,11 @@ import logging
 from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 
-from agent.memory import guardar_cita, buscar_o_crear_cliente, listar_servicios
+from agent.memory import (
+    guardar_cita, buscar_o_crear_cliente, listar_servicios,
+    citas_activas_de, cancelar_cita as _mem_cancelar,
+    reagendar_cita as _mem_reagendar, cambiar_servicio_cita as _mem_cambiar_servicio,
+)
 
 logger = logging.getLogger("agentkit")
 
@@ -148,9 +152,100 @@ async def agendar_cita(telefono: str, nombre_cliente: str, servicio: str, fecha:
 
 
 # ════════════════════════════════════════════════════════════
+# Gestión de citas existentes por la propia clienta
+# ════════════════════════════════════════════════════════════
+async def listar_mis_citas(telefono: str) -> dict:
+    """Lista las citas activas de quien escribe (para identificar cuál cambiar/cancelar)."""
+    return {"citas": await citas_activas_de(telefono)}
+
+
+async def cancelar_cita(telefono: str, cita_id: str) -> dict:
+    ok = await _mem_cancelar(cita_id, telefono)
+    return {"exito": ok, "mensaje": "Tu cita fue cancelada." if ok else "No encontré esa cita a tu nombre."}
+
+
+async def reagendar_cita(telefono: str, cita_id: str, fecha: str, hora: str) -> dict:
+    disponibilidad = verificar_disponibilidad(fecha, hora)
+    if not disponibilidad["disponible"]:
+        return {"exito": False, "mensaje": disponibilidad["mensaje"]}
+    cita = next((c for c in await citas_activas_de(telefono) if c["id"] == cita_id), None)
+    if cita is None:
+        return {"exito": False, "mensaje": "No encontré esa cita a tu nombre."}
+    duracion = 60
+    if cita["servicio_id"]:
+        for s in await listar_servicios():
+            if s["id"] == cita["servicio_id"]:
+                duracion = s["duracion_min"]
+                break
+    try:
+        inicia_en = datetime.strptime(f"{fecha} {hora}", "%Y-%m-%d %H:%M").replace(tzinfo=ZONA_HORARIA)
+    except ValueError:
+        return {"exito": False, "mensaje": "Formato de fecha u hora inválido."}
+    termina_en = inicia_en + timedelta(minutes=duracion)
+    ok = await _mem_reagendar(cita_id, telefono, inicia_en, termina_en)
+    return {"exito": ok, "mensaje": f"Listo, reagendé tu cita para el {fecha} a las {hora}." if ok else "No pude reagendar la cita."}
+
+
+async def cambiar_servicio_cita(telefono: str, cita_id: str, nuevo_servicio: str) -> dict:
+    cita = next((c for c in await citas_activas_de(telefono) if c["id"] == cita_id), None)
+    if cita is None:
+        return {"exito": False, "mensaje": "No encontré esa cita a tu nombre."}
+    servicios = await listar_servicios()
+    objetivo = nuevo_servicio.lower().strip()
+    exacto = next((s for s in servicios if s["nombre"].lower() == objetivo), None)
+    candidatos = [s for s in servicios if objetivo in s["nombre"].lower() or s["nombre"].lower() in objetivo]
+    elegido = exacto or (max(candidatos, key=lambda s: len(s["nombre"])) if candidatos else None)
+    if elegido is None:
+        return {"exito": False, "mensaje": "No reconocí ese servicio."}
+    inicia_en = datetime.fromisoformat(cita["inicia_en"])
+    termina_en = inicia_en + timedelta(minutes=elegido["duracion_min"])
+    ok = await _mem_cambiar_servicio(cita_id, telefono, elegido["id"], termina_en)
+    return {"exito": ok, "mensaje": f"Listo, cambié tu cita a {elegido['nombre']}." if ok else "No pude cambiar el servicio."}
+
+
+# ════════════════════════════════════════════════════════════
 # Definición de herramientas para Claude (tool use)
 # ════════════════════════════════════════════════════════════
 TOOLS_CLAUDE = [
+    {
+        "name": "listar_mis_citas",
+        "description": "Lista las citas activas de la clienta que escribe. Úsala SIEMPRE antes de cancelar, reagendar o cambiar una cita, para saber el cita_id correcto.",
+        "input_schema": {"type": "object", "properties": {}},
+    },
+    {
+        "name": "cancelar_cita",
+        "description": "Cancela una cita existente de la clienta. Necesitas el cita_id (obtenlo con listar_mis_citas). Confirma con la clienta antes de cancelar.",
+        "input_schema": {
+            "type": "object",
+            "properties": {"cita_id": {"type": "string", "description": "ID de la cita a cancelar"}},
+            "required": ["cita_id"],
+        },
+    },
+    {
+        "name": "reagendar_cita",
+        "description": "Cambia la fecha y hora de una cita existente. Necesitas el cita_id (de listar_mis_citas) y la nueva fecha/hora.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "cita_id": {"type": "string", "description": "ID de la cita a reagendar"},
+                "fecha": {"type": "string", "description": "Nueva fecha en formato YYYY-MM-DD"},
+                "hora": {"type": "string", "description": "Nueva hora en formato HH:MM (24 horas)"},
+            },
+            "required": ["cita_id", "fecha", "hora"],
+        },
+    },
+    {
+        "name": "cambiar_servicio_cita",
+        "description": "Cambia el servicio de una cita existente (mantiene la misma fecha/hora). Necesitas el cita_id (de listar_mis_citas) y el nuevo servicio.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "cita_id": {"type": "string", "description": "ID de la cita"},
+                "nuevo_servicio": {"type": "string", "description": "Nombre del nuevo servicio"},
+            },
+            "required": ["cita_id", "nuevo_servicio"],
+        },
+    },
     {
         "name": "listar_servicios",
         "description": "Devuelve el catálogo de servicios activos de MDnails (nombre, duración y precio). Úsala cuando el cliente pregunte qué servicios hay o cuánto duran/cuestan.",
@@ -217,6 +312,22 @@ async def ejecutar_herramienta(nombre: str, entrada: dict, telefono: str) -> dic
             servicio=entrada.get("servicio", ""),
             fecha=entrada.get("fecha", ""),
             hora=entrada.get("hora", ""),
+        )
+
+    if nombre == "listar_mis_citas":
+        return await listar_mis_citas(telefono)
+
+    if nombre == "cancelar_cita":
+        return await cancelar_cita(telefono, entrada.get("cita_id", ""))
+
+    if nombre == "reagendar_cita":
+        return await reagendar_cita(
+            telefono, entrada.get("cita_id", ""), entrada.get("fecha", ""), entrada.get("hora", "")
+        )
+
+    if nombre == "cambiar_servicio_cita":
+        return await cambiar_servicio_cita(
+            telefono, entrada.get("cita_id", ""), entrada.get("nuevo_servicio", "")
         )
 
     return {"error": f"Herramienta desconocida: {nombre}"}

@@ -460,6 +460,78 @@ async def actualizar_cita(
         return True
 
 
+# ════════════════════════════════════════════════════════════
+# Gestión de citas por la propia clienta (desde WhatsApp)
+# El teléfono se toma del remitente: solo puede tocar SUS citas.
+# ════════════════════════════════════════════════════════════
+async def citas_activas_de(telefono: str) -> list[dict]:
+    """Citas futuras y no canceladas de un teléfono (para ver/cambiar/cancelar)."""
+    async with async_session() as session:
+        query = (
+            select(Cita, Servicio.nombre)
+            .join(Cliente, Cita.cliente_id == Cliente.id)
+            .outerjoin(Servicio, Cita.servicio_id == Servicio.id)
+            .where(
+                Cliente.telefono == telefono,
+                Cita.estado != "cancelada",
+                Cita.inicia_en >= _ahora(),
+            )
+            .order_by(Cita.inicia_en.asc())
+        )
+        result = await session.execute(query)
+        return [
+            {
+                "id": str(c.id),
+                "servicio": nombre or "—",
+                "servicio_id": str(c.servicio_id) if c.servicio_id else None,
+                "inicia_en": c.inicia_en.isoformat(),
+                "estado": c.estado,
+            }
+            for c, nombre in result.all()
+        ]
+
+
+async def _cita_del_telefono(session, cita_id: str, telefono: str):
+    """Devuelve la cita solo si pertenece a ese teléfono (control de propiedad)."""
+    result = await session.execute(
+        select(Cita).join(Cliente, Cita.cliente_id == Cliente.id)
+        .where(Cita.id == uuid.UUID(cita_id), Cliente.telefono == telefono)
+    )
+    return result.scalar_one_or_none()
+
+
+async def cancelar_cita(cita_id: str, telefono: str) -> bool:
+    async with async_session() as session:
+        cita = await _cita_del_telefono(session, cita_id, telefono)
+        if cita is None:
+            return False
+        cita.estado = "cancelada"
+        await session.commit()
+        return True
+
+
+async def reagendar_cita(cita_id: str, telefono: str, inicia_en: datetime, termina_en: datetime) -> bool:
+    async with async_session() as session:
+        cita = await _cita_del_telefono(session, cita_id, telefono)
+        if cita is None:
+            return False
+        cita.inicia_en = inicia_en
+        cita.termina_en = termina_en
+        await session.commit()
+        return True
+
+
+async def cambiar_servicio_cita(cita_id: str, telefono: str, servicio_id: str, termina_en: datetime) -> bool:
+    async with async_session() as session:
+        cita = await _cita_del_telefono(session, cita_id, telefono)
+        if cita is None:
+            return False
+        cita.servicio_id = uuid.UUID(servicio_id)
+        cita.termina_en = termina_en
+        await session.commit()
+        return True
+
+
 async def obtener_citas(telefono: str) -> list[dict]:
     """Recupera las citas de un cliente (con el nombre del servicio)."""
     async with async_session() as session:
