@@ -272,7 +272,8 @@ _PAGINA_HTML = """<!DOCTYPE html>
     </section>
     <div class="barra">
       <div class="chips">
-        <button class="chip activo" data-f="hoy" onclick="setFiltro('hoy')">Hoy</button>
+        <button class="chip activo" data-f="proximas" onclick="setFiltro('proximas')">Próximas</button>
+        <button class="chip" data-f="hoy" onclick="setFiltro('hoy')">Hoy</button>
         <button class="chip" data-f="pendientes" onclick="setFiltro('pendientes')">Pendientes</button>
         <button class="chip" data-f="todas" onclick="setFiltro('todas')">Todas</button>
       </div>
@@ -330,7 +331,7 @@ const API = "/panel/api";
 const TZ  = "America/Mazatlan";
 const ESTADOS = ["pendiente","confirmada","cancelada","completada"];
 const DIAS_ABREV = ["Lun","Mar","Mié","Jue","Vie","Sáb","Dom"];
-let filtro = "hoy", empleados = [], empleadosGestion = [], citas = [], huella = "", esAdmin = true;
+let filtro = "proximas", empleados = [], empleadosGestion = [], citas = [], huella = "", esAdmin = true;
 let modoModal = "crear", editId = null;
 
 async function api(path, opts){
@@ -406,6 +407,10 @@ function stats(){
   document.getElementById("sTot").textContent  = citas.length;
 }
 function aplicarFiltro(){
+  if(filtro==="proximas"){
+    const hoy = new Date(); hoy.setHours(0,0,0,0);   // desde el inicio de hoy en adelante
+    return citas.filter(c=>new Date(c.inicia_en) >= hoy);
+  }
   if(filtro==="hoy")        return citas.filter(c=>esHoy(c.inicia_en));
   if(filtro==="pendientes") return citas.filter(c=>c.estado==="pendiente");
   return citas;

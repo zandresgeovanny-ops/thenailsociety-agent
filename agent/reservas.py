@@ -75,6 +75,7 @@ async def api_reservar(payload: dict):
             termina_en=termina_en,
             empleado_id=uuid.UUID(empleado_id) if empleado_id else None,
             notas=f"Reserva web · {servicio['nombre']}",
+            origen="web",
         )
     except IntegrityError:
         # El constraint de no-solapamiento rechazó la cita (alguien tomó el turno)

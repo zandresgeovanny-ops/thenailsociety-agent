@@ -239,6 +239,7 @@ async def guardar_cita(
     termina_en: datetime | None = None,
     notas: str | None = None,
     empleado_id: uuid.UUID | None = None,
+    origen: str = "whatsapp",
 ) -> dict:
     """Registra una cita y devuelve sus datos básicos.
 
@@ -253,6 +254,7 @@ async def guardar_cita(
             termina_en=termina_en,
             notas=notas,
             empleado_id=empleado_id,
+            origen=origen,
         )
         session.add(cita)
         await session.commit()
