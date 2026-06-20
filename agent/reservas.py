@@ -173,6 +173,7 @@ let servicios = [], empleados = [];
 const sel = { servicio:null, empleado:null, empleadoNombre:"Cualquiera disponible", fecha:null, hora:null };
 
 async function api(p, opts){ const r = await fetch(API+p, opts); if(!r.ok){ const e=await r.json().catch(()=>({})); throw new Error(e.detail||("HTTP "+r.status)); } return r.json(); }
+function ampm(hhmm){ if(!hhmm) return ""; const [H,M]=hhmm.split(":").map(Number); const d=new Date(); d.setHours(H,M,0,0); return d.toLocaleTimeString("es-MX",{hour:"numeric",minute:"2-digit",hour12:true}); }
 function marcarPasos(){ document.querySelectorAll(".paso").forEach(p=>p.classList.toggle("on", +p.dataset.p <= paso)); }
 function hoyISO(){ return new Date().toLocaleDateString("en-CA",{timeZone:TZ}); }  // YYYY-MM-DD
 
@@ -234,7 +235,7 @@ async function cargarSlots(){
     if(sel.empleado) q.set("empleado_id", sel.empleado);
     const {slots} = await api("/disponibilidad?"+q.toString());
     if(!slots.length){ cont.innerHTML = `<div class="aviso">No hay horarios libres ese día 😕<br>Prueba con otra fecha.</div>`; return; }
-    cont.innerHTML = `<div class="slots">${slots.map(h=>`<div class="slot" onclick="elegirHora('${h}',this)">${h}</div>`).join("")}</div>`;
+    cont.innerHTML = `<div class="slots">${slots.map(h=>`<div class="slot" onclick="elegirHora('${h}',this)">${ampm(h)}</div>`).join("")}</div>`;
   }catch(e){ cont.innerHTML = `<div class="aviso">No se pudo cargar la disponibilidad.</div>`; }
 }
 function elegirHora(h, el){
@@ -251,7 +252,7 @@ function pintarConfirmacion(){
   const f = new Date(sel.fecha+"T12:00:00").toLocaleDateString("es-MX",{weekday:"long",day:"numeric",month:"long"});
   const c = document.getElementById("contenido");
   c.innerHTML = `<div class="panel"><h2>Confirma tu cita</h2><p class="sub">Solo faltan tus datos.</p>
-    <div class="resumen">💅 <b>${s.nombre}</b> (${s.duracion_min} min)<br>👩 ${sel.empleadoNombre}<br>📅 ${f}<br>🕒 ${sel.hora} hrs</div>
+    <div class="resumen">💅 <b>${s.nombre}</b> (${s.duracion_min} min)<br>👩 ${sel.empleadoNombre}<br>📅 ${f}<br>🕒 ${ampm(sel.hora)}</div>
     <label>Tu nombre</label><input type="text" id="nombre" placeholder="Ej. Mariana López">
     <label>Tu WhatsApp</label><input type="tel" id="telefono" placeholder="Ej. 6671234567">
     <div class="nav">
@@ -275,7 +276,7 @@ function pintarExito(nombre){
   const f = new Date(sel.fecha+"T12:00:00").toLocaleDateString("es-MX",{weekday:"long",day:"numeric",month:"long"});
   document.getElementById("contenido").innerHTML = `<div class="panel exito">
     <div class="check">✓</div><h2>¡Cita reservada!</h2>
-    <p class="sub">Gracias ${nombre}, te esperamos.<br><b>${s.nombre}</b> · ${f} · ${sel.hora} hrs</p>
+    <p class="sub">Gracias ${nombre}, te esperamos.<br><b>${s.nombre}</b> · ${f} · ${ampm(sel.hora)}</p>
     <div class="nav"><button class="btn primary" onclick="location.reload()">Reservar otra</button></div></div>`;
 }
 

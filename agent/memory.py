@@ -11,12 +11,12 @@ por llaves foráneas, y las fechas se guardan como timestamp con zona horaria.
 
 import os
 import uuid
-from datetime import datetime, timezone, timedelta, time as _time
+from datetime import datetime, timezone, timedelta, date as _date, time as _time
 from zoneinfo import ZoneInfo
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 from sqlalchemy import (
-    String, Text, DateTime, Time, Integer, Numeric, Boolean, ForeignKey, Uuid, select,
+    String, Text, DateTime, Time, Integer, Numeric, Boolean, ForeignKey, Uuid, select, delete,
 )
 from dotenv import load_dotenv
 
@@ -391,13 +391,90 @@ async def listar_empleados() -> list[dict]:
         return [{"id": str(e.id), "nombre": e.nombre} for e in result.scalars().all()]
 
 
-async def crear_empleado(nombre: str) -> dict:
-    """Registra una nueva empleada."""
+def _calcular_turno(hora_inicio: str, duracion_horas) -> tuple:
+    """A partir de 'HH:MM' y una duración (1-10 h) devuelve (hora_inicio, hora_fin)."""
+    hi = datetime.strptime(hora_inicio, "%H:%M").time()
+    dur = max(1, min(10, int(duracion_horas or 8)))
+    fin = datetime.combine(_date(2000, 1, 1), hi) + timedelta(hours=dur)
+    # No pasar de medianoche
+    hf = fin.time() if fin.date() == _date(2000, 1, 1) else _time(23, 59)
+    return hi, hf
+
+
+async def _set_horarios(session, empleado_id, hora_inicio, duracion_horas, dias):
+    """Reemplaza el horario de una empleada con un turno uniforme en los días dados."""
+    await session.execute(delete(HorarioEmpleado).where(HorarioEmpleado.empleado_id == empleado_id))
+    if hora_inicio and dias:
+        hi, hf = _calcular_turno(hora_inicio, duracion_horas)
+        for d in dias:
+            session.add(HorarioEmpleado(
+                empleado_id=empleado_id, dia_semana=int(d), hora_inicio=hi, hora_fin=hf,
+            ))
+
+
+async def crear_empleado(nombre: str, hora_inicio: str | None = None,
+                         duracion_horas=None, dias: list | None = None) -> dict:
+    """Registra una nueva empleada y, opcionalmente, su turno de trabajo."""
     async with async_session() as session:
         emp = Empleado(nombre=nombre)
         session.add(emp)
+        await session.flush()
+        if hora_inicio and dias:
+            await _set_horarios(session, emp.id, hora_inicio, duracion_horas, dias)
         await session.commit()
         return {"id": str(emp.id), "nombre": emp.nombre}
+
+
+async def desactivar_empleado(empleado_id: str, activo: bool) -> bool:
+    """Da de baja (activo=False) o reactiva (activo=True) a una empleada."""
+    async with async_session() as session:
+        emp = await session.get(Empleado, uuid.UUID(empleado_id))
+        if emp is None:
+            return False
+        emp.activo = bool(activo)
+        await session.commit()
+        return True
+
+
+async def establecer_horario_empleado(empleado_id: str, hora_inicio: str,
+                                      duracion_horas, dias: list) -> bool:
+    """Define o cambia el turno de una empleada."""
+    async with async_session() as session:
+        emp = await session.get(Empleado, uuid.UUID(empleado_id))
+        if emp is None:
+            return False
+        await _set_horarios(session, emp.id, hora_inicio, duracion_horas, dias)
+        await session.commit()
+        return True
+
+
+async def gestionar_empleados() -> list[dict]:
+    """Lista TODAS las empleadas (activas e inactivas) con su turno, para administración."""
+    async with async_session() as session:
+        empleados = (await session.execute(
+            select(Empleado).order_by(Empleado.nombre)
+        )).scalars().all()
+        salida = []
+        for e in empleados:
+            horarios = (await session.execute(
+                select(HorarioEmpleado)
+                .where(HorarioEmpleado.empleado_id == e.id)
+                .order_by(HorarioEmpleado.dia_semana)
+            )).scalars().all()
+            dias = [h.dia_semana for h in horarios]
+            hora_inicio = horarios[0].hora_inicio.strftime("%H:%M") if horarios else None
+            hora_fin = horarios[0].hora_fin.strftime("%H:%M") if horarios else None
+            duracion = None
+            if horarios:
+                ini = datetime.combine(_date(2000, 1, 1), horarios[0].hora_inicio)
+                fin = datetime.combine(_date(2000, 1, 1), horarios[0].hora_fin)
+                duracion = round((fin - ini).seconds / 3600)
+            salida.append({
+                "id": str(e.id), "nombre": e.nombre, "activo": e.activo,
+                "dias": dias, "hora_inicio": hora_inicio, "hora_fin": hora_fin,
+                "duracion_horas": duracion,
+            })
+        return salida
 
 
 async def crear_usuario(email: str, password_hash: str, rol: str,

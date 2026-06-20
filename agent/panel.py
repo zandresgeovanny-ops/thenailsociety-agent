@@ -1,13 +1,10 @@
-# agent/panel.py — Panel de administración de citas (dashboard web)
+# agent/panel.py — Panel de administración (citas y empleadas)
 # Generado por AgentKit
 
 """
-Dashboard interno para las empleadas del salón. Lo sirve el propio backend
-(FastAPI) y está protegido con autenticación básica (usuario/contraseña), de
-modo que los datos de las clientas nunca quedan expuestos públicamente.
-
-Acceso de datos del lado del servidor (vía memory.py), que usa la conexión
-directa a Postgres y por lo tanto no depende de las políticas RLS de Supabase.
+Dashboard interno del salón, servido por el backend (FastAPI) y protegido con
+sesión por roles. El admin gestiona citas y empleadas; la empleada solo ve su
+agenda. Los datos se leen del lado del servidor (no se exponen públicamente).
 """
 
 import logging
@@ -17,6 +14,7 @@ from fastapi.responses import HTMLResponse, RedirectResponse
 
 from agent.memory import (
     listar_citas, listar_empleados, crear_empleado, actualizar_cita,
+    desactivar_empleado, establecer_horario_empleado, gestionar_empleados,
 )
 from agent.auth import usuario_actual, requiere_panel
 
@@ -27,18 +25,21 @@ router = APIRouter(prefix="/panel")
 ESTADOS_VALIDOS = {"pendiente", "confirmada", "cancelada", "completada"}
 
 
+def _solo_admin(user: dict):
+    if user["rol"] != "admin":
+        raise HTTPException(status_code=403, detail="Solo el administrador puede hacer esto")
+
+
 # ════════════════════════════════════════════════════════════
-# API JSON (consumida por la página)
+# API JSON
 # ════════════════════════════════════════════════════════════
 @router.get("/api/yo")
 async def api_yo(user: dict = Depends(requiere_panel)):
-    """Datos del usuario en sesión, para que la página adapte permisos."""
     return {"nombre": user["nombre"], "rol": user["rol"], "empleado_id": user["empleado_id"]}
 
 
 @router.get("/api/citas")
 async def api_citas(user: dict = Depends(requiere_panel)):
-    # La empleada solo ve su propia agenda; el admin ve todas las citas.
     if user["rol"] == "empleada":
         return await listar_citas(empleado_filtro=user["empleado_id"])
     return await listar_citas()
@@ -49,14 +50,43 @@ async def api_empleados(_: dict = Depends(requiere_panel)):
     return await listar_empleados()
 
 
+@router.get("/api/empleados/gestion")
+async def api_empleados_gestion(user: dict = Depends(requiere_panel)):
+    _solo_admin(user)
+    return await gestionar_empleados()
+
+
 @router.post("/api/empleados")
 async def api_crear_empleado(payload: dict, user: dict = Depends(requiere_panel)):
-    if user["rol"] != "admin":
-        raise HTTPException(status_code=403, detail="Solo el administrador puede crear empleadas")
+    _solo_admin(user)
     nombre = (payload.get("nombre") or "").strip()
     if not nombre:
         raise HTTPException(status_code=400, detail="El nombre es obligatorio")
-    return await crear_empleado(nombre)
+    return await crear_empleado(
+        nombre,
+        hora_inicio=payload.get("hora_inicio"),
+        duracion_horas=payload.get("duracion_horas"),
+        dias=payload.get("dias"),
+    )
+
+
+@router.post("/api/empleados/{empleado_id}/estado")
+async def api_empleado_estado(empleado_id: str, payload: dict, user: dict = Depends(requiere_panel)):
+    _solo_admin(user)
+    if not await desactivar_empleado(empleado_id, bool(payload.get("activo"))):
+        raise HTTPException(status_code=404, detail="Empleada no encontrada")
+    return {"ok": True}
+
+
+@router.post("/api/empleados/{empleado_id}/horario")
+async def api_empleado_horario(empleado_id: str, payload: dict, user: dict = Depends(requiere_panel)):
+    _solo_admin(user)
+    dias = payload.get("dias") or []
+    if not await establecer_horario_empleado(
+        empleado_id, payload.get("hora_inicio"), payload.get("duracion_horas"), dias
+    ):
+        raise HTTPException(status_code=404, detail="Empleada no encontrada")
+    return {"ok": True}
 
 
 @router.post("/api/citas/{cita_id}/estado")
@@ -71,8 +101,7 @@ async def api_estado(cita_id: str, payload: dict, _: dict = Depends(requiere_pan
 
 @router.post("/api/citas/{cita_id}/empleado")
 async def api_empleado(cita_id: str, payload: dict, user: dict = Depends(requiere_panel)):
-    if user["rol"] != "admin":
-        raise HTTPException(status_code=403, detail="Solo el administrador puede reasignar empleadas")
+    _solo_admin(user)
     empleado_id = payload.get("empleado_id") or None
     if not await actualizar_cita(cita_id, empleado_id=empleado_id):
         raise HTTPException(status_code=404, detail="Cita no encontrada")
@@ -80,7 +109,7 @@ async def api_empleado(cita_id: str, payload: dict, user: dict = Depends(requier
 
 
 # ════════════════════════════════════════════════════════════
-# Página del panel (exige sesión; si no hay, manda al login)
+# Página (exige sesión; si no hay, manda al login)
 # ════════════════════════════════════════════════════════════
 @router.get("", response_class=HTMLResponse)
 @router.get("/", response_class=HTMLResponse)
@@ -98,7 +127,7 @@ _PAGINA_HTML = """<!DOCTYPE html>
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>MDnails · Panel de citas</title>
+<title>MDnails · Panel</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Playfair+Display:wght@600;700&display=swap" rel="stylesheet">
@@ -119,7 +148,6 @@ _PAGINA_HTML = """<!DOCTYPE html>
       var(--bg);
     min-height:100vh;
   }
-  /* ---------- Header ---------- */
   header{
     position:sticky; top:0; z-index:20; backdrop-filter:saturate(1.2) blur(8px);
     background:rgba(255,255,255,.82); border-bottom:1px solid var(--linea);
@@ -140,19 +168,22 @@ _PAGINA_HTML = """<!DOCTYPE html>
   .salir:hover{background:var(--rosa-suave)}
   .oculto{display:none !important}
   .dot{width:9px; height:9px; border-radius:50%; background:var(--ok); box-shadow:0 0 0 0 rgba(31,157,107,.6); animation:pulse 1.8s infinite}
-  /* ---------- Layout ---------- */
-  main{max-width:1180px; margin:0 auto; padding:26px 28px 60px}
+  main{max-width:1180px; margin:0 auto; padding:24px 28px 60px}
+  /* Navegación */
+  .nav{display:flex; align-items:center; gap:8px; margin-bottom:22px; flex-wrap:wrap}
+  .navbtn{background:var(--panel); border:1px solid var(--linea); padding:9px 16px; border-radius:11px; cursor:pointer; font-weight:600; font-size:14px; color:var(--gris); font-family:inherit; box-shadow:var(--sombra); transition:.15s}
+  .navbtn:hover{color:var(--rosa)}
+  .navbtn.activo{background:linear-gradient(135deg,var(--rosa),var(--rosa-2)); color:#fff; border-color:transparent}
+  .navlink{margin-left:auto; color:var(--rosa-2); font-weight:600; font-size:13px; text-decoration:none; border:1px dashed var(--rosa-borde); padding:8px 14px; border-radius:11px; transition:.15s}
+  .navlink:hover{background:var(--rosa-suave)}
   .stats{display:grid; grid-template-columns:repeat(4,1fr); gap:16px; margin-bottom:24px}
-  .stat{
-    background:var(--panel); border:1px solid var(--linea); border-radius:18px; padding:18px 20px;
-    box-shadow:var(--sombra); animation:rise .5s ease both;
-  }
+  .stat{background:var(--panel); border:1px solid var(--linea); border-radius:18px; padding:18px 20px; box-shadow:var(--sombra); animation:rise .5s ease both}
   .stat .n{font-size:30px; font-weight:700; font-family:'Playfair Display',serif; line-height:1}
   .stat .l{font-size:12.5px; color:var(--gris); margin-top:6px; text-transform:uppercase; letter-spacing:.05em}
   .stat.hoy .n{color:var(--rosa)} .stat.pend .n{color:var(--warn)}
   .stat.conf .n{color:var(--ok)} .stat.tot .n{color:var(--info)}
-  /* ---------- Barra de acciones ---------- */
   .barra{display:flex; align-items:center; gap:10px; margin-bottom:16px; flex-wrap:wrap}
+  .vtitulo{font-family:'Playfair Display',serif; font-size:20px; margin:0}
   .chips{display:inline-flex; background:var(--panel); border:1px solid var(--linea); border-radius:12px; padding:4px; gap:2px; box-shadow:var(--sombra)}
   .chip{border:none; background:transparent; padding:8px 16px; border-radius:9px; cursor:pointer; color:var(--gris); font-weight:600; font-size:13.5px; transition:.18s}
   .chip:hover{color:var(--rosa)}
@@ -160,7 +191,7 @@ _PAGINA_HTML = """<!DOCTYPE html>
   .btn{border:none; border-radius:11px; padding:9px 16px; cursor:pointer; font-weight:600; font-size:13.5px; transition:.18s; font-family:inherit}
   .btn.primary{background:linear-gradient(135deg,var(--rosa),var(--rosa-2)); color:#fff; box-shadow:0 4px 12px rgba(184,50,103,.3); margin-left:auto}
   .btn.primary:hover{transform:translateY(-1px); box-shadow:0 8px 18px rgba(184,50,103,.4)}
-  /* ---------- Tabla ---------- */
+  .btn.ghost{background:#f4eef1; color:var(--tinta)}
   .tarjeta{background:var(--panel); border:1px solid var(--linea); border-radius:20px; box-shadow:var(--sombra); overflow:hidden}
   table{width:100%; border-collapse:collapse}
   th,td{text-align:left; padding:15px 18px; font-size:14px; vertical-align:middle}
@@ -179,81 +210,114 @@ _PAGINA_HTML = """<!DOCTYPE html>
   select{font-family:inherit; font-size:13px; border:1px solid var(--linea); border-radius:9px; padding:7px 9px; background:#fff; color:var(--tinta); cursor:pointer; transition:.15s}
   select:hover{border-color:var(--rosa)}
   .estado-cell{display:flex; align-items:center; gap:10px; flex-wrap:wrap}
-  /* ---------- Estado vacío / skeleton ---------- */
+  .mini{border:1px solid var(--linea); background:#fff; border-radius:9px; padding:6px 11px; cursor:pointer; font-size:12.5px; font-weight:600; color:var(--tinta); font-family:inherit; transition:.15s}
+  .mini:hover{border-color:var(--rosa)}
+  .mini.bad{color:var(--bad); border-color:#f3c7c7}
+  .mini.ok{color:var(--ok); border-color:#bfe6d3}
+  .acc{display:flex; gap:8px; flex-wrap:wrap}
   .vacio{text-align:center; padding:60px 20px; color:var(--gris)}
   .vacio .ico{font-size:46px; opacity:.6}
   .vacio p{margin:12px 0 0; font-size:15px}
   .vacio a{color:var(--rosa); cursor:pointer; font-weight:600; text-decoration:underline}
   .skel{height:14px; border-radius:6px; background:linear-gradient(90deg,#f0e6ec 25%,#f8eef3 37%,#f0e6ec 63%); background-size:400% 100%; animation:shimmer 1.4s infinite}
-  /* ---------- Modal ---------- */
   .overlay{position:fixed; inset:0; background:rgba(42,34,48,.45); backdrop-filter:blur(2px); display:none; place-items:center; z-index:50; animation:fade .2s ease}
   .overlay.open{display:grid}
-  .modal{background:#fff; border-radius:20px; padding:26px; width:min(380px,92vw); box-shadow:0 20px 60px rgba(0,0,0,.25); animation:rise .25s ease}
+  .modal{background:#fff; border-radius:20px; padding:26px; width:min(420px,92vw); box-shadow:0 20px 60px rgba(0,0,0,.25); animation:rise .25s ease}
   .modal h3{font-family:'Playfair Display',serif; margin:0 0 4px}
   .modal p{margin:0 0 16px; color:var(--gris); font-size:13.5px}
-  .modal input{width:100%; padding:11px 13px; border:1px solid var(--linea); border-radius:11px; font-family:inherit; font-size:14px; margin-bottom:16px}
+  .modal label{font-size:13px; font-weight:600; color:var(--gris); display:block; margin:0 0 6px}
+  .modal input[type=text], .modal input[type=time]{width:100%; padding:11px 13px; border:1px solid var(--linea); border-radius:11px; font-family:inherit; font-size:14px; margin-bottom:14px}
   .modal input:focus{outline:none; border-color:var(--rosa)}
-  .modal .fila{display:flex; gap:10px; justify-content:flex-end}
-  .btn.ghost{background:#f4eef1; color:var(--tinta)}
-  /* ---------- Toast ---------- */
+  .modal input[type=range]{width:100%; margin-bottom:16px}
+  .dias{display:flex; gap:6px; flex-wrap:wrap; margin-bottom:16px}
+  .diachk{display:flex; align-items:center; gap:5px; font-size:13px; border:1px solid var(--linea); padding:6px 10px; border-radius:9px; cursor:pointer}
+  .fila{display:flex; gap:10px; justify-content:flex-end}
   #toasts{position:fixed; bottom:22px; right:22px; z-index:60; display:flex; flex-direction:column; gap:10px}
-  .toast{background:var(--tinta); color:#fff; padding:12px 18px; border-radius:12px; font-size:13.5px; box-shadow:0 10px 30px rgba(0,0,0,.25); animation:slideIn .3s ease; display:flex; align-items:center; gap:9px}
+  .toast{background:var(--tinta); color:#fff; padding:12px 18px; border-radius:12px; font-size:13.5px; box-shadow:0 10px 30px rgba(0,0,0,.25); animation:slideIn .3s ease}
   .toast.ok{background:#1f9d6b} .toast.err{background:#d84a4a}
-  /* ---------- Animaciones ---------- */
   @keyframes pulse{0%{box-shadow:0 0 0 0 rgba(31,157,107,.5)}70%{box-shadow:0 0 0 9px rgba(31,157,107,0)}100%{box-shadow:0 0 0 0 rgba(31,157,107,0)}}
   @keyframes rise{from{opacity:0; transform:translateY(10px)}to{opacity:1; transform:none}}
   @keyframes pop{from{opacity:0; transform:scale(.6)}to{opacity:1; transform:none}}
   @keyframes fade{from{opacity:0}to{opacity:1}}
   @keyframes slideIn{from{opacity:0; transform:translateX(30px)}to{opacity:1; transform:none}}
   @keyframes shimmer{0%{background-position:100% 0}100%{background-position:-100% 0}}
-  @media(max-width:760px){.stats{grid-template-columns:repeat(2,1fr)} th:nth-child(3),td:nth-child(3){display:none}}
+  @media(max-width:760px){.stats{grid-template-columns:repeat(2,1fr)}}
 </style>
 </head>
 <body>
 <header>
   <div class="marca">
     <div class="logo">💅</div>
-    <div><h1>MDnails</h1><span>Panel de citas</span></div>
+    <div><h1>MDnails</h1><span>Panel de administración</span></div>
   </div>
   <div class="vivo"><span class="dot"></span><span id="vivoTxt">conectando…</span></div>
   <div class="usr"><span><b id="usrNombre">…</b><div class="rol" id="usrRol"></div></span><a class="salir" href="/logout">Salir</a></div>
 </header>
 
 <main>
-  <section class="stats">
-    <div class="stat hoy"><div class="n" id="sHoy">·</div><div class="l">Citas hoy</div></div>
-    <div class="stat pend"><div class="n" id="sPend">·</div><div class="l">Pendientes</div></div>
-    <div class="stat conf"><div class="n" id="sConf">·</div><div class="l">Confirmadas</div></div>
-    <div class="stat tot"><div class="n" id="sTot">·</div><div class="l">Total</div></div>
+  <nav class="nav">
+    <button class="navbtn activo" data-v="citas" onclick="verVista('citas')">📅 Citas</button>
+    <button class="navbtn oculto" id="navEmpleadas" data-v="empleadas" onclick="verVista('empleadas')">👩 Empleadas</button>
+    <a class="navlink" href="/reservar" target="_blank" rel="noopener">Ver portal de clientas ↗</a>
+  </nav>
+
+  <!-- ===== Vista Citas ===== -->
+  <section id="vistaCitas">
+    <section class="stats">
+      <div class="stat hoy"><div class="n" id="sHoy">·</div><div class="l">Citas hoy</div></div>
+      <div class="stat pend"><div class="n" id="sPend">·</div><div class="l">Pendientes</div></div>
+      <div class="stat conf"><div class="n" id="sConf">·</div><div class="l">Confirmadas</div></div>
+      <div class="stat tot"><div class="n" id="sTot">·</div><div class="l">Total</div></div>
+    </section>
+    <div class="barra">
+      <div class="chips">
+        <button class="chip activo" data-f="hoy" onclick="setFiltro('hoy')">Hoy</button>
+        <button class="chip" data-f="pendientes" onclick="setFiltro('pendientes')">Pendientes</button>
+        <button class="chip" data-f="todas" onclick="setFiltro('todas')">Todas</button>
+      </div>
+    </div>
+    <div class="tarjeta">
+      <table>
+        <thead><tr><th>Hora</th><th>Cliente</th><th>Servicio</th><th>Empleada</th><th>Estado</th></tr></thead>
+        <tbody id="tbody"></tbody>
+      </table>
+      <div class="vacio" id="vacio" style="display:none"></div>
+    </div>
   </section>
 
-  <div class="barra">
-    <div class="chips">
-      <button class="chip activo" data-f="hoy" onclick="setFiltro('hoy')">Hoy</button>
-      <button class="chip" data-f="pendientes" onclick="setFiltro('pendientes')">Pendientes</button>
-      <button class="chip" data-f="todas" onclick="setFiltro('todas')">Todas</button>
+  <!-- ===== Vista Empleadas ===== -->
+  <section id="vistaEmpleadas" class="oculto">
+    <div class="barra">
+      <h2 class="vtitulo">Empleadas</h2>
+      <button class="btn primary" onclick="abrirModalEmpleada('crear')">+ Nueva empleada</button>
     </div>
-    <button class="btn primary" id="btnEmpleada" onclick="abrirModal()">+ Nueva empleada</button>
-  </div>
-
-  <div class="tarjeta">
-    <table>
-      <thead><tr><th>Hora</th><th>Cliente</th><th>Servicio</th><th>Empleada</th><th>Estado</th></tr></thead>
-      <tbody id="tbody"></tbody>
-    </table>
-    <div class="vacio" id="vacio" style="display:none"></div>
-  </div>
+    <div class="tarjeta">
+      <table>
+        <thead><tr><th>Nombre</th><th>Turno</th><th>Estado</th><th>Acciones</th></tr></thead>
+        <tbody id="tbodyEmp"></tbody>
+      </table>
+    </div>
+  </section>
 </main>
 
-<!-- Modal nueva empleada -->
+<!-- Modal empleada (crear / editar turno) -->
 <div class="overlay" id="overlay">
   <div class="modal">
-    <h3>Nueva empleada</h3>
-    <p>Se agregará a la lista para asignarle citas.</p>
-    <input id="inpEmpleada" placeholder="Nombre de la empleada" onkeydown="if(event.key==='Enter')guardarEmpleada()">
+    <h3 id="modalTitulo">Nueva empleada</h3>
+    <p id="modalSub">Define su nombre y su turno de trabajo.</p>
+    <div id="campoNombre">
+      <label>Nombre</label>
+      <input type="text" id="inpEmpNombre" placeholder="Nombre de la empleada">
+    </div>
+    <label>Hora de entrada</label>
+    <input type="time" id="inpHoraInicio" value="09:00">
+    <label>Duración del turno: <b id="lblDur">8</b> horas</label>
+    <input type="range" id="inpDur" min="1" max="10" value="8" oninput="document.getElementById('lblDur').textContent=this.value">
+    <label>Días de trabajo</label>
+    <div class="dias" id="diasBox"></div>
     <div class="fila">
       <button class="btn ghost" onclick="cerrarModal()">Cancelar</button>
-      <button class="btn primary" style="margin:0" onclick="guardarEmpleada()">Guardar</button>
+      <button class="btn primary" style="margin:0" onclick="guardarEmpleadaForm()">Guardar</button>
     </div>
   </div>
 </div>
@@ -261,11 +325,12 @@ _PAGINA_HTML = """<!DOCTYPE html>
 <div id="toasts"></div>
 
 <script>
-const API = "/panel/api";              // rutas ABSOLUTAS (funcionan con o sin barra final)
+const API = "/panel/api";
 const TZ  = "America/Mazatlan";
-let filtro = "hoy", empleados = [], citas = [], huella = "", esAdmin = true;
-
 const ESTADOS = ["pendiente","confirmada","cancelada","completada"];
+const DIAS_ABREV = ["Lun","Mar","Mié","Jue","Vie","Sáb","Dom"];
+let filtro = "hoy", empleados = [], empleadosGestion = [], citas = [], huella = "", esAdmin = true;
+let modoModal = "crear", editId = null;
 
 async function api(path, opts){
   const r = await fetch(API + path, opts);
@@ -279,12 +344,27 @@ function toast(msg, tipo="ok"){
   document.getElementById("toasts").appendChild(t);
   setTimeout(()=>{ t.style.opacity=0; setTimeout(()=>t.remove(),300); }, 2600);
 }
+// ---- Formato de horas en 12h (AM/PM) ----
+function ampm(hhmm){
+  if(!hhmm) return "";
+  const [H,M] = hhmm.split(":").map(Number);
+  const d = new Date(); d.setHours(H, M, 0, 0);
+  return d.toLocaleTimeString("es-MX",{hour:"numeric",minute:"2-digit",hour12:true});
+}
+function diasTexto(dias){
+  if(!dias || !dias.length) return "Sin turno";
+  const o = [...dias].sort((a,b)=>a-b);
+  const contiguo = o.every((v,i)=> i===0 || v===o[i-1]+1);
+  return (contiguo && o.length>1)
+    ? `${DIAS_ABREV[o[0]]}–${DIAS_ABREV[o[o.length-1]]}`
+    : o.map(d=>DIAS_ABREV[d]).join(", ");
+}
 function fechaLocal(iso){ return new Date(iso).toLocaleDateString("es-MX",{timeZone:TZ,year:"numeric",month:"2-digit",day:"2-digit"}); }
 function esHoy(iso){ return fechaLocal(iso) === fechaLocal(new Date().toISOString()); }
 function fmt(iso){
   const d = new Date(iso);
   return {
-    h: d.toLocaleTimeString("es-MX",{timeZone:TZ,hour:"2-digit",minute:"2-digit"}),
+    h: d.toLocaleTimeString("es-MX",{timeZone:TZ,hour:"numeric",minute:"2-digit",hour12:true}),
     d: d.toLocaleDateString("es-MX",{timeZone:TZ,weekday:"long",day:"2-digit",month:"short"})
   };
 }
@@ -294,14 +374,20 @@ function optsEmpleadas(sel){
 }
 function optsEstado(act){ return ESTADOS.map(s=>`<option value="${s}" ${s===act?"selected":""}>${s}</option>`).join(""); }
 
+// ---- Navegación entre vistas ----
+function verVista(v){
+  document.getElementById("vistaCitas").classList.toggle("oculto", v!=="citas");
+  document.getElementById("vistaEmpleadas").classList.toggle("oculto", v!=="empleadas");
+  document.querySelectorAll(".navbtn").forEach(b=>b.classList.toggle("activo", b.dataset.v===v));
+  if(v==="empleadas") recargarEmpleados();
+}
+
+// ---- Citas ----
 function setFiltro(f){
   filtro = f; huella = "";
   document.querySelectorAll(".chip").forEach(c=>c.classList.toggle("activo", c.dataset.f===f));
   pintar();
 }
-function abrirModal(){ document.getElementById("overlay").classList.add("open"); document.getElementById("inpEmpleada").focus(); }
-function cerrarModal(){ document.getElementById("overlay").classList.remove("open"); document.getElementById("inpEmpleada").value=""; }
-
 async function cambiarEstado(id, estado){
   try{ await api(`/citas/${id}/estado`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({estado})});
     toast("Estado actualizado"); await cargar(true);
@@ -312,14 +398,6 @@ async function cambiarEmpleada(id, empleado_id){
     toast("Empleada asignada"); await cargar(true);
   }catch(e){ toast("No se pudo asignar","err"); }
 }
-async function guardarEmpleada(){
-  const nombre = document.getElementById("inpEmpleada").value.trim();
-  if(!nombre) return;
-  try{ await api("/empleados",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({nombre})});
-    empleados = await api("/empleados"); cerrarModal(); toast("Empleada agregada"); huella=""; pintar();
-  }catch(e){ toast("No se pudo agregar","err"); }
-}
-
 function stats(){
   document.getElementById("sHoy").textContent  = citas.filter(c=>esHoy(c.inicia_en)).length;
   document.getElementById("sPend").textContent = citas.filter(c=>c.estado==="pendiente").length;
@@ -341,7 +419,7 @@ function pintar(){
     vacio.style.display = "block";
     const hayOtras = citas.length > 0;
     vacio.innerHTML = `<div class="ico">🗓️</div><p>No hay citas en esta vista.` +
-      (hayOtras && filtro!=="todas" ? ` Tenés ${citas.length} en total — <a onclick="setFiltro('todas')">ver todas</a>.` : ``) + `</p>`;
+      (hayOtras && filtro!=="todas" ? ` Tienes ${citas.length} en total — <a onclick="setFiltro('todas')">ver todas</a>.` : ``) + `</p>`;
     return;
   }
   vacio.style.display = "none";
@@ -359,35 +437,112 @@ function pintar(){
     </tr>`;
   }).join("");
 }
-
 async function cargar(forzar){
   try{
     const data = await api("/citas");
     citas = Array.isArray(data) ? data : [];
     const h = JSON.stringify(citas) + filtro;
     if(forzar || h !== huella){ huella = h; pintar(); }
-    const ahora = new Date().toLocaleTimeString("es-MX",{timeZone:TZ,hour:"2-digit",minute:"2-digit",second:"2-digit"});
+    const ahora = new Date().toLocaleTimeString("es-MX",{timeZone:TZ,hour:"numeric",minute:"2-digit",hour12:true});
     document.getElementById("vivoTxt").textContent = "En vivo · " + ahora;
   }catch(e){
     document.getElementById("vivoTxt").textContent = "Sin conexión…";
   }
 }
 
+// ---- Empleadas ----
+async function recargarEmpleados(){
+  try{
+    empleadosGestion = await api("/empleados/gestion");
+    empleados = await api("/empleados");
+    renderEmpleados();
+  }catch(e){ /* la empleada no admin no entra aquí */ }
+}
+function renderEmpleados(){
+  const cont = document.getElementById("tbodyEmp");
+  if(!empleadosGestion.length){
+    cont.innerHTML = `<tr><td colspan="4" style="text-align:center;color:var(--gris);padding:34px">Aún no hay empleadas. Agrega la primera con “+ Nueva empleada”.</td></tr>`;
+    return;
+  }
+  cont.innerHTML = empleadosGestion.map(e=>{
+    const turno = e.hora_inicio ? `${diasTexto(e.dias)} · ${ampm(e.hora_inicio)} – ${ampm(e.hora_fin)}` : "Sin turno asignado";
+    const estado = e.activo ? `<span class="badge b-confirmada">activa</span>` : `<span class="badge b-cancelada">baja</span>`;
+    const baja = e.activo
+      ? `<button class="mini bad" onclick="toggleBaja('${e.id}',false)">Dar de baja</button>`
+      : `<button class="mini ok" onclick="toggleBaja('${e.id}',true)">Reactivar</button>`;
+    return `<tr style="${e.activo?'':'opacity:.55'}">
+      <td><b>${e.nombre}</b></td>
+      <td>${turno}</td>
+      <td>${estado}</td>
+      <td><div class="acc"><button class="mini" onclick="editarTurno('${e.id}')">Editar turno</button>${baja}</div></td>
+    </tr>`;
+  }).join("");
+}
+function construirDias(seleccion){
+  document.getElementById("diasBox").innerHTML = DIAS_ABREV.map((d,i)=>
+    `<label class="diachk"><input type="checkbox" value="${i}" ${seleccion.includes(i)?"checked":""}> ${d}</label>`).join("");
+}
+function abrirModalEmpleada(modo, emp){
+  modoModal = modo; editId = emp ? emp.id : null;
+  document.getElementById("modalTitulo").textContent = modo==="crear" ? "Nueva empleada" : "Editar turno";
+  document.getElementById("modalSub").textContent = modo==="crear" ? "Define su nombre y su turno de trabajo." : `Ajusta el turno de ${emp.nombre}.`;
+  document.getElementById("campoNombre").style.display = modo==="crear" ? "block" : "none";
+  document.getElementById("inpEmpNombre").value = "";
+  document.getElementById("inpHoraInicio").value = (emp && emp.hora_inicio) ? emp.hora_inicio : "09:00";
+  const dur = (emp && emp.duracion_horas) ? emp.duracion_horas : 8;
+  document.getElementById("inpDur").value = dur;
+  document.getElementById("lblDur").textContent = dur;
+  construirDias((emp && emp.dias && emp.dias.length) ? emp.dias : [0,1,2,3,4,5]);
+  document.getElementById("overlay").classList.add("open");
+}
+function editarTurno(id){
+  const e = empleadosGestion.find(x=>x.id===id);
+  if(e) abrirModalEmpleada("editar", e);
+}
+function cerrarModal(){ document.getElementById("overlay").classList.remove("open"); }
+async function guardarEmpleadaForm(){
+  const hora_inicio = document.getElementById("inpHoraInicio").value;
+  const duracion_horas = parseInt(document.getElementById("inpDur").value);
+  const dias = [...document.querySelectorAll("#diasBox input:checked")].map(c=>parseInt(c.value));
+  if(!dias.length){ toast("Selecciona al menos un día de trabajo","err"); return; }
+  try{
+    if(modoModal==="crear"){
+      const nombre = document.getElementById("inpEmpNombre").value.trim();
+      if(!nombre){ toast("Escribe el nombre de la empleada","err"); return; }
+      await api("/empleados",{method:"POST",headers:{"Content-Type":"application/json"},
+        body:JSON.stringify({nombre, hora_inicio, duracion_horas, dias})});
+      toast("Empleada agregada");
+    }else{
+      await api(`/empleados/${editId}/horario`,{method:"POST",headers:{"Content-Type":"application/json"},
+        body:JSON.stringify({hora_inicio, duracion_horas, dias})});
+      toast("Turno actualizado");
+    }
+    cerrarModal(); await recargarEmpleados();
+  }catch(e){ toast("No se pudo guardar","err"); }
+}
+async function toggleBaja(id, activo){
+  if(!activo && !confirm("¿Dar de baja a esta empleada? Ya no se le podrán asignar citas nuevas.")) return;
+  try{
+    await api(`/empleados/${id}/estado`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({activo})});
+    toast(activo ? "Empleada reactivada" : "Empleada dada de baja");
+    await recargarEmpleados();
+  }catch(e){ toast("No se pudo cambiar el estado","err"); }
+}
+
+// ---- Inicio ----
 (async function init(){
-  // Identificar al usuario en sesión; si no hay, al login
   try{
     const yo = await api("/yo");
     esAdmin = yo.rol === "admin";
     document.getElementById("usrNombre").textContent = yo.nombre || "Usuaria";
-    document.getElementById("usrRol").textContent = esAdmin ? "Administrador" : "Empleada";
-    if(!esAdmin) document.getElementById("btnEmpleada").classList.add("oculto");
+    document.getElementById("usrRol").textContent = esAdmin ? "Administradora" : "Empleada";
+    if(esAdmin) document.getElementById("navEmpleadas").classList.remove("oculto");
   }catch(e){ location.href = "/login"; return; }
-  // skeleton inicial
   document.getElementById("tbody").innerHTML = Array.from({length:3}).map(()=>
     `<tr><td colspan="5"><div class="skel"></div></td></tr>`).join("");
-  try{ empleados = await api("/empleados"); }catch(e){ empleados = []; }
+  if(esAdmin){ try{ empleados = await api("/empleados"); }catch(e){ empleados = []; } }
   await cargar(true);
-  setInterval(()=>cargar(false), 7000);   // auto-refresco cada 7s
+  setInterval(()=>cargar(false), 7000);
 })();
 </script>
 </body>
