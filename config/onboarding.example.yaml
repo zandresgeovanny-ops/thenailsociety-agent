@@ -1,0 +1,25 @@
+# Plantilla de alta de un salón nuevo.
+# Copia este archivo como config/onboarding.yaml, edítalo y corre:
+#   python scripts/onboarding.py
+
+negocio:
+  nombre: "MD Nails"
+
+# Servicios del salón (la categoría agrupa en el portal de reservas)
+servicios:
+  - { nombre: "Manicura",                   duracion_min: 45, precio: 180, categoria: "Manicura" }
+  - { nombre: "Manicura con gel",           duracion_min: 60, precio: 300, categoria: "Manicura" }
+  - { nombre: "Cambios de esmalte de uñas", duracion_min: 30, precio: 120, categoria: "Manicura" }
+  - { nombre: "Corte y limado de uñas",     duracion_min: 30, precio: 100, categoria: "Manicura" }
+  - { nombre: "Diseños para uñas",          duracion_min: 60, precio: 250, categoria: "Diseño" }
+
+# Empleadas (se les asigna por defecto horario L-V 9-19, Sáb 9-14)
+empleadas:
+  - { nombre: "Karla" }
+  - { nombre: "Lupita" }
+
+# Usuario administrador (dueña/o del salón)
+admin:
+  nombre: "Andrea Medina (Dueña)"
+  email: "admin@mdnails.com"
+  password: "CAMBIA-esta-clave"
