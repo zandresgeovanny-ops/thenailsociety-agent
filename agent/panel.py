@@ -312,8 +312,8 @@ _PAGINA_HTML = """<!DOCTYPE html>
     </div>
     <label>Hora de entrada</label>
     <input type="time" id="inpHoraInicio" value="09:00">
-    <label>Duración del turno: <b id="lblDur">8</b> horas</label>
-    <input type="range" id="inpDur" min="1" max="10" value="8" oninput="document.getElementById('lblDur').textContent=this.value">
+    <label>Duración del turno: <b id="lblDur">8 horas</b></label>
+    <input type="range" id="inpDur" min="1" max="10" value="8" oninput="document.getElementById('lblDur').textContent=this.value+(this.value==='1'?' hora':' horas')">
     <label>Días de trabajo</label>
     <div class="dias" id="diasBox"></div>
     <div class="fila">
@@ -492,7 +492,7 @@ function abrirModalEmpleada(modo, emp){
   document.getElementById("inpHoraInicio").value = (emp && emp.hora_inicio) ? emp.hora_inicio : "09:00";
   const dur = (emp && emp.duracion_horas) ? emp.duracion_horas : 8;
   document.getElementById("inpDur").value = dur;
-  document.getElementById("lblDur").textContent = dur;
+  document.getElementById("lblDur").textContent = dur + (dur===1 ? " hora" : " horas");
   construirDias((emp && emp.dias && emp.dias.length) ? emp.dias : [0,1,2,3,4,5]);
   document.getElementById("overlay").classList.add("open");
 }
@@ -536,7 +536,7 @@ async function toggleBaja(id, activo){
     const yo = await api("/yo");
     esAdmin = yo.rol === "admin";
     document.getElementById("usrNombre").textContent = yo.nombre || "Usuaria";
-    document.getElementById("usrRol").textContent = esAdmin ? "Administradora" : "Empleada";
+    document.getElementById("usrRol").textContent = esAdmin ? "Administrador(a)" : "Empleada";
     if(esAdmin) document.getElementById("navEmpleadas").classList.remove("oculto");
   }catch(e){ location.href = "/login"; return; }
   document.getElementById("tbody").innerHTML = Array.from({length:3}).map(()=>
