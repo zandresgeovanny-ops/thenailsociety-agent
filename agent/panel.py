@@ -15,6 +15,7 @@ from fastapi.responses import HTMLResponse, RedirectResponse
 from agent.memory import (
     listar_citas, listar_empleados, crear_empleado, actualizar_cita,
     desactivar_empleado, establecer_horario_empleado, gestionar_empleados,
+    eliminar_empleado,
 )
 from agent.auth import usuario_actual, requiere_panel
 
@@ -85,6 +86,14 @@ async def api_empleado_horario(empleado_id: str, payload: dict, user: dict = Dep
     if not await establecer_horario_empleado(
         empleado_id, payload.get("hora_inicio"), payload.get("duracion_horas"), dias
     ):
+        raise HTTPException(status_code=404, detail="Empleada no encontrada")
+    return {"ok": True}
+
+
+@router.delete("/api/empleados/{empleado_id}")
+async def api_eliminar_empleado(empleado_id: str, user: dict = Depends(requiere_panel)):
+    _solo_admin(user)
+    if not await eliminar_empleado(empleado_id):
         raise HTTPException(status_code=404, detail="Empleada no encontrada")
     return {"ok": True}
 
@@ -242,6 +251,20 @@ _PAGINA_HTML = """<!DOCTYPE html>
   @keyframes fade{from{opacity:0}to{opacity:1}}
   @keyframes slideIn{from{opacity:0; transform:translateX(30px)}to{opacity:1; transform:none}}
   @keyframes shimmer{0%{background-position:100% 0}100%{background-position:-100% 0}}
+  @keyframes fadeUp{from{opacity:0; transform:translateY(14px)} to{opacity:1; transform:none}}
+  /* Flujo de animaciones e interacción */
+  .anim{animation:fadeUp .4s cubic-bezier(.2,.7,.3,1) both}
+  .stat{transition:transform .2s ease, box-shadow .2s ease}
+  .stat:hover{transform:translateY(-3px); box-shadow:0 12px 30px rgba(120,40,80,.14)}
+  .tarjeta{transition:box-shadow .25s ease}
+  .tarjeta:hover{box-shadow:0 10px 32px rgba(120,40,80,.12)}
+  .mini{transition:transform .12s ease, border-color .15s ease, color .15s ease}
+  .mini:active{transform:scale(.93)}
+  .btn:active{transform:scale(.97)}
+  .navbtn:active{transform:scale(.96)}
+  .chip:active{transform:scale(.95)}
+  .badge{transition:transform .15s ease}
+  tbody tr:hover .badge{transform:scale(1.06)}
   @media(max-width:760px){.stats{grid-template-columns:repeat(2,1fr)}}
 </style>
 </head>
@@ -275,6 +298,7 @@ _PAGINA_HTML = """<!DOCTYPE html>
         <button class="chip activo" data-f="proximas" onclick="setFiltro('proximas')">Próximas</button>
         <button class="chip" data-f="hoy" onclick="setFiltro('hoy')">Hoy</button>
         <button class="chip" data-f="pendientes" onclick="setFiltro('pendientes')">Pendientes</button>
+        <button class="chip" data-f="completadas" onclick="setFiltro('completadas')">Completadas</button>
         <button class="chip" data-f="todas" onclick="setFiltro('todas')">Todas</button>
       </div>
     </div>
@@ -381,6 +405,8 @@ function verVista(v){
   document.getElementById("vistaCitas").classList.toggle("oculto", v!=="citas");
   document.getElementById("vistaEmpleadas").classList.toggle("oculto", v!=="empleadas");
   document.querySelectorAll(".navbtn").forEach(b=>b.classList.toggle("activo", b.dataset.v===v));
+  const sec = document.getElementById(v==="citas" ? "vistaCitas" : "vistaEmpleadas");
+  sec.classList.remove("anim"); void sec.offsetWidth; sec.classList.add("anim");  // re-dispara la animación
   if(v==="empleadas") recargarEmpleados();
 }
 
@@ -409,10 +435,11 @@ function stats(){
 function aplicarFiltro(){
   if(filtro==="proximas"){
     const hoy = new Date(); hoy.setHours(0,0,0,0);   // desde el inicio de hoy en adelante
-    return citas.filter(c=>new Date(c.inicia_en) >= hoy);
+    return citas.filter(c=>new Date(c.inicia_en) >= hoy && c.estado!=="completada" && c.estado!=="cancelada");
   }
-  if(filtro==="hoy")        return citas.filter(c=>esHoy(c.inicia_en));
+  if(filtro==="hoy")        return citas.filter(c=>esHoy(c.inicia_en) && c.estado!=="completada");
   if(filtro==="pendientes") return citas.filter(c=>c.estado==="pendiente");
+  if(filtro==="completadas")return citas.filter(c=>c.estado==="completada");
   return citas;
 }
 function pintar(){
@@ -475,7 +502,7 @@ function renderEmpleados(){
     const estado = e.activo ? `<span class="badge b-confirmada">activa</span>` : `<span class="badge b-cancelada">baja</span>`;
     const baja = e.activo
       ? `<button class="mini bad" onclick="toggleBaja('${e.id}',false)">Dar de baja</button>`
-      : `<button class="mini ok" onclick="toggleBaja('${e.id}',true)">Reactivar</button>`;
+      : `<button class="mini ok" onclick="toggleBaja('${e.id}',true)">Reactivar</button><button class="mini bad" onclick="eliminarEmpleado('${e.id}')">Eliminar</button>`;
     return `<tr style="${e.activo?'':'opacity:.55'}">
       <td><b>${e.nombre}</b></td>
       <td>${turno}</td>
@@ -527,12 +554,22 @@ async function guardarEmpleadaForm(){
   }catch(e){ toast("No se pudo guardar","err"); }
 }
 async function toggleBaja(id, activo){
-  if(!activo && !confirm("¿Dar de baja a esta empleada? Ya no se le podrán asignar citas nuevas.")) return;
+  if(!activo && !confirm("¿Dar de baja a esta empleada? Ya no se le podrán asignar citas nuevas (puedes reactivarla después).")) return;
   try{
     await api(`/empleados/${id}/estado`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({activo})});
     toast(activo ? "Empleada reactivada" : "Empleada dada de baja");
     await recargarEmpleados();
   }catch(e){ toast("No se pudo cambiar el estado","err"); }
+}
+async function eliminarEmpleado(id){
+  const e = empleadosGestion.find(x=>x.id===id);
+  const nombre = e ? e.nombre : "esta empleada";
+  if(!confirm(`¿Eliminar permanentemente a ${nombre}? Esta acción NO se puede deshacer. Sus citas pasadas quedarán sin empleada asignada.`)) return;
+  try{
+    await api(`/empleados/${id}`,{method:"DELETE"});
+    toast("Empleada eliminada");
+    await recargarEmpleados();
+  }catch(e){ toast("No se pudo eliminar","err"); }
 }
 
 // ---- Inicio ----

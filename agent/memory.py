@@ -16,7 +16,7 @@ from zoneinfo import ZoneInfo
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 from sqlalchemy import (
-    String, Text, DateTime, Time, Integer, Numeric, Boolean, ForeignKey, Uuid, select, delete,
+    String, Text, DateTime, Time, Integer, Numeric, Boolean, ForeignKey, Uuid, select, delete, update,
 )
 from dotenv import load_dotenv
 
@@ -448,6 +448,51 @@ async def establecer_horario_empleado(empleado_id: str, hora_inicio: str,
         await _set_horarios(session, emp.id, hora_inicio, duracion_horas, dias)
         await session.commit()
         return True
+
+
+async def eliminar_empleado(empleado_id: str) -> bool:
+    """Elimina una empleada de forma permanente. Desvincula sus citas y su login,
+    y borra sus horarios. (Distinto de 'dar de baja', que solo la desactiva.)"""
+    async with async_session() as session:
+        emp = await session.get(Empleado, uuid.UUID(empleado_id))
+        if emp is None:
+            return False
+        await session.execute(update(Cita).where(Cita.empleado_id == emp.id).values(empleado_id=None))
+        await session.execute(update(Usuario).where(Usuario.empleado_id == emp.id).values(empleado_id=None))
+        await session.execute(delete(HorarioEmpleado).where(HorarioEmpleado.empleado_id == emp.id))
+        await session.delete(emp)
+        await session.commit()
+        return True
+
+
+async def buscar_empleada_disponible(inicia_en: datetime, termina_en: datetime) -> dict:
+    """
+    Busca una empleada activa que trabaje en esa franja y no tenga una cita que
+    se solape. Devuelve:
+      {"empleado_id": <id>}                 -> hay una libre (asignar)
+      {"empleado_id": None, "hay_personal": True}  -> hay personal ese día pero todas ocupadas
+      {"empleado_id": None, "hay_personal": False} -> no hay personal con horario ese día
+    """
+    dow = inicia_en.weekday()
+    ini_t = inicia_en.time()
+    fin_t = termina_en.time()
+    async with async_session() as session:
+        filas = (await session.execute(
+            select(Empleado.id, HorarioEmpleado.hora_inicio, HorarioEmpleado.hora_fin)
+            .join(HorarioEmpleado, HorarioEmpleado.empleado_id == Empleado.id)
+            .where(Empleado.activo.is_(True), HorarioEmpleado.dia_semana == dow)
+        )).all()
+        candidatas = [eid for (eid, hi, hf) in filas if hi <= ini_t and fin_t <= hf]
+        if not candidatas:
+            return {"empleado_id": None, "hay_personal": False}
+        for eid in candidatas:
+            citas = (await session.execute(
+                select(Cita).where(Cita.empleado_id == eid, Cita.estado != "cancelada")
+            )).scalars().all()
+            choca = any(inicia_en < (c.termina_en or c.inicia_en) and c.inicia_en < termina_en for c in citas)
+            if not choca:
+                return {"empleado_id": str(eid), "hay_personal": True}
+        return {"empleado_id": None, "hay_personal": True}
 
 
 async def gestionar_empleados() -> list[dict]:

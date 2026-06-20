@@ -14,10 +14,13 @@ import logging
 from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 
+from sqlalchemy.exc import IntegrityError
+
 from agent.memory import (
     guardar_cita, buscar_o_crear_cliente, listar_servicios,
     citas_activas_de, cancelar_cita as _mem_cancelar,
     reagendar_cita as _mem_reagendar, cambiar_servicio_cita as _mem_cambiar_servicio,
+    buscar_empleada_disponible,
 )
 
 logger = logging.getLogger("agentkit")
@@ -137,14 +140,25 @@ async def agendar_cita(telefono: str, nombre_cliente: str, servicio: str, fecha:
         duracion = elegido["duracion_min"]
 
     termina_en = inicia_en + timedelta(minutes=duracion)
+
+    # Disponibilidad REAL: buscar una empleada libre en esa franja (o rechazar)
+    disp = await buscar_empleada_disponible(inicia_en, termina_en)
+    if disp["empleado_id"] is None and disp.get("hay_personal"):
+        return {"exito": False, "mensaje": "Ese horario ya está ocupado. ¿Quieres que te ofrezca otro horario disponible ese día?"}
+    empleado_asignado = uuid.UUID(disp["empleado_id"]) if disp["empleado_id"] else None
+
     cliente_id = await buscar_o_crear_cliente(telefono, nombre_cliente)
-    await guardar_cita(
-        cliente_id=cliente_id,
-        servicio_id=servicio_id,
-        inicia_en=inicia_en,
-        termina_en=termina_en,
-        notas=f"Servicio solicitado por el cliente: {servicio}",
-    )
+    try:
+        await guardar_cita(
+            cliente_id=cliente_id,
+            servicio_id=servicio_id,
+            inicia_en=inicia_en,
+            termina_en=termina_en,
+            empleado_id=empleado_asignado,
+            notas=f"Servicio solicitado por el cliente: {servicio}",
+        )
+    except IntegrityError:
+        return {"exito": False, "mensaje": "Ese horario acaba de ocuparse. ¿Te ofrezco otro horario disponible?"}
     return {
         "exito": True,
         "mensaje": f"Cita registrada para {nombre_cliente}: {servicio} el {fecha} a las {hora}. MDnails la confirmará pronto.",
@@ -182,7 +196,10 @@ async def reagendar_cita(telefono: str, cita_id: str, fecha: str, hora: str) -> 
     except ValueError:
         return {"exito": False, "mensaje": "Formato de fecha u hora inválido."}
     termina_en = inicia_en + timedelta(minutes=duracion)
-    ok = await _mem_reagendar(cita_id, telefono, inicia_en, termina_en)
+    try:
+        ok = await _mem_reagendar(cita_id, telefono, inicia_en, termina_en)
+    except IntegrityError:
+        return {"exito": False, "mensaje": "Ese horario ya está ocupado, elige otro por favor."}
     return {"exito": ok, "mensaje": f"Listo, reagendé tu cita para el {fecha} a las {hora}." if ok else "No pude reagendar la cita."}
 
 
