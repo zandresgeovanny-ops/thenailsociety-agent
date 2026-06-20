@@ -24,6 +24,10 @@ knowledge/*
 # Session state
 config/session.yaml
 
+# Guía personal y config de onboarding con datos del negocio
+GUIA-DEMO.md
+config/onboarding.yaml
+
 # OS
 .DS_Store
 Thumbs.db
