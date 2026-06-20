@@ -199,7 +199,8 @@ _PAGINA_HTML = """<!DOCTYPE html>
   tbody tr{border-top:1px solid var(--linea); animation:rise .4s ease both}
   tbody tr:hover{background:#fdf9fb}
   .hora-h{font-weight:700; font-size:15px}
-  .hora-d{font-size:12px; color:var(--gris); text-transform:capitalize}
+  .hora-d{font-size:12px; color:var(--gris)}
+  .hora-d::first-letter{text-transform:uppercase}
   .cli{font-weight:600}
   .tel{font-size:12px; color:var(--gris)}
   .badge{display:inline-block; padding:4px 12px; border-radius:999px; font-size:12px; font-weight:700; text-transform:capitalize}
