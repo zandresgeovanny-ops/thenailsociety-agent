@@ -15,7 +15,7 @@ from fastapi.responses import HTMLResponse, RedirectResponse
 from agent.memory import (
     listar_citas, listar_empleados, crear_empleado, actualizar_cita,
     desactivar_empleado, establecer_horario_empleado, gestionar_empleados,
-    eliminar_empleado,
+    eliminar_empleado, registro_citas,
 )
 from agent.auth import usuario_actual, requiere_panel
 
@@ -49,6 +49,14 @@ async def api_citas(user: dict = Depends(requiere_panel)):
 @router.get("/api/empleados")
 async def api_empleados(_: dict = Depends(requiere_panel)):
     return await listar_empleados()
+
+
+@router.get("/api/registro")
+async def api_registro(user: dict = Depends(requiere_panel)):
+    # La empleada ve solo las citas que ella atendió; el admin ve todas.
+    if user["rol"] == "empleada":
+        return await registro_citas(empleado_filtro=user["empleado_id"])
+    return await registro_citas()
 
 
 @router.get("/api/empleados/gestion")
@@ -193,6 +201,12 @@ _PAGINA_HTML = """<!DOCTYPE html>
   .stat.conf .n{color:var(--ok)} .stat.tot .n{color:var(--info)}
   .barra{display:flex; align-items:center; gap:10px; margin-bottom:16px; flex-wrap:wrap}
   .vtitulo{font-family:'Playfair Display',serif; font-size:20px; margin:0}
+  .busqueda{margin-left:auto; padding:9px 14px; border:1px solid var(--linea); border-radius:11px; font-family:inherit; font-size:13.5px; min-width:min(280px,60vw); transition:border-color .15s}
+  .busqueda:focus{outline:none; border-color:var(--rosa)}
+  .resumen-reg{display:flex; gap:14px; margin-bottom:16px; flex-wrap:wrap}
+  .resumen-reg .pill{background:var(--rosa-suave); color:var(--rosa-2); border-radius:13px; padding:10px 18px; font-size:13.5px; font-weight:600; box-shadow:var(--sombra)}
+  .resumen-reg .pill b{font-family:'Playfair Display',serif; font-size:19px; margin-left:4px}
+  .costo{font-weight:700; color:var(--rosa-2)}
   .chips{display:inline-flex; background:var(--panel); border:1px solid var(--linea); border-radius:12px; padding:4px; gap:2px; box-shadow:var(--sombra)}
   .chip{border:none; background:transparent; padding:8px 16px; border-radius:9px; cursor:pointer; color:var(--gris); font-weight:600; font-size:13.5px; transition:.18s}
   .chip:hover{color:var(--rosa)}
@@ -281,6 +295,7 @@ _PAGINA_HTML = """<!DOCTYPE html>
 <main>
   <nav class="nav">
     <button class="navbtn activo" data-v="citas" onclick="verVista('citas')">📅 Citas</button>
+    <button class="navbtn" data-v="registro" onclick="verVista('registro')">📋 Registro</button>
     <button class="navbtn oculto" id="navEmpleadas" data-v="empleadas" onclick="verVista('empleadas')">👩 Empleadas</button>
     <a class="navlink" href="/reservar" target="_blank" rel="noopener">Ver portal de clientas ↗</a>
   </nav>
@@ -324,6 +339,22 @@ _PAGINA_HTML = """<!DOCTYPE html>
       </table>
     </div>
   </section>
+
+  <!-- ===== Vista Registro (citas completadas) ===== -->
+  <section id="vistaRegistro" class="oculto">
+    <div class="barra">
+      <h2 class="vtitulo">Registro de citas completadas</h2>
+      <input id="busqRegistro" class="busqueda" placeholder="Buscar por cliente, servicio o empleada…" oninput="renderRegistro()">
+    </div>
+    <div class="resumen-reg" id="resumenReg"></div>
+    <div class="tarjeta">
+      <table>
+        <thead><tr><th>Cita</th><th>Servicio</th><th>Costo</th><th>Empleada</th><th>Cliente</th><th>Agendada</th></tr></thead>
+        <tbody id="tbodyReg"></tbody>
+      </table>
+      <div class="vacio" id="vacioReg" style="display:none"></div>
+    </div>
+  </section>
 </main>
 
 <!-- Modal empleada (crear / editar turno) -->
@@ -355,7 +386,7 @@ const API = "/panel/api";
 const TZ  = "America/Mazatlan";
 const ESTADOS = ["pendiente","confirmada","cancelada","completada"];
 const DIAS_ABREV = ["Lun","Mar","Mié","Jue","Vie","Sáb","Dom"];
-let filtro = "proximas", empleados = [], empleadosGestion = [], citas = [], huella = "", esAdmin = true;
+let filtro = "proximas", empleados = [], empleadosGestion = [], citas = [], registro = [], huella = "", esAdmin = true;
 let modoModal = "crear", editId = null;
 
 async function api(path, opts){
@@ -402,12 +433,13 @@ function optsEstado(act){ return ESTADOS.map(s=>`<option value="${s}" ${s===act?
 
 // ---- Navegación entre vistas ----
 function verVista(v){
-  document.getElementById("vistaCitas").classList.toggle("oculto", v!=="citas");
-  document.getElementById("vistaEmpleadas").classList.toggle("oculto", v!=="empleadas");
+  const vistas = {citas:"vistaCitas", registro:"vistaRegistro", empleadas:"vistaEmpleadas"};
+  Object.entries(vistas).forEach(([k,id])=> document.getElementById(id).classList.toggle("oculto", k!==v));
   document.querySelectorAll(".navbtn").forEach(b=>b.classList.toggle("activo", b.dataset.v===v));
-  const sec = document.getElementById(v==="citas" ? "vistaCitas" : "vistaEmpleadas");
-  sec.classList.remove("anim"); void sec.offsetWidth; sec.classList.add("anim");  // re-dispara la animación
+  const sec = document.getElementById(vistas[v]);
+  if(sec){ sec.classList.remove("anim"); void sec.offsetWidth; sec.classList.add("anim"); }  // re-dispara la animación
   if(v==="empleadas") recargarEmpleados();
+  if(v==="registro") cargarRegistro();
 }
 
 // ---- Citas ----
@@ -571,6 +603,42 @@ async function eliminarEmpleado(id){
     toast("Empleada eliminada");
     await recargarEmpleados();
   }catch(e){ toast("No se pudo eliminar","err"); }
+}
+
+// ---- Registro de citas completadas ----
+async function cargarRegistro(){
+  try{ registro = await api("/registro"); }catch(e){ registro = []; }
+  renderRegistro();
+}
+function renderRegistro(){
+  const q = (document.getElementById("busqRegistro").value || "").toLowerCase().trim();
+  const lista = registro.filter(r => !q || `${r.cliente} ${r.servicio} ${r.empleada||""}`.toLowerCase().includes(q));
+  const total = lista.reduce((s,r)=> s + (r.costo||0), 0);
+  document.getElementById("resumenReg").innerHTML =
+    `<div class="pill">Servicios realizados: <b>${lista.length}</b></div>` +
+    `<div class="pill">Ingresos: <b>$${total.toLocaleString("es-MX")}</b></div>`;
+  const tb = document.getElementById("tbodyReg");
+  const vac = document.getElementById("vacioReg");
+  if(!lista.length){
+    tb.innerHTML = "";
+    vac.style.display = "block";
+    vac.innerHTML = `<div class="ico">📋</div><p>Aún no hay citas completadas en el registro.</p>`;
+    return;
+  }
+  vac.style.display = "none";
+  tb.innerHTML = lista.map((r,i)=>{
+    const t = fmt(r.inicia_en);
+    const agend = new Date(r.agendada_en).toLocaleDateString("es-MX",{timeZone:TZ,day:"2-digit",month:"short",year:"numeric"});
+    const costo = (r.costo!=null) ? `$${r.costo.toLocaleString("es-MX")}` : "—";
+    return `<tr style="animation-delay:${i*35}ms">
+      <td><div class="hora-h">${t.h}</div><div class="hora-d">${t.d}</div></td>
+      <td>${r.servicio}</td>
+      <td><span class="costo">${costo}</span></td>
+      <td>${r.empleada || "— sin asignar —"}</td>
+      <td><div class="cli">${r.cliente}</div><div class="tel">${r.telefono}</div></td>
+      <td>${agend}</td>
+    </tr>`;
+  }).join("");
 }
 
 // ---- Inicio ----

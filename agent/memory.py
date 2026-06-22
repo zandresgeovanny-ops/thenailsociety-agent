@@ -495,6 +495,37 @@ async def buscar_empleada_disponible(inicia_en: datetime, termina_en: datetime) 
         return {"empleado_id": None, "hay_personal": True}
 
 
+async def registro_citas(empleado_filtro: str | None = None) -> list[dict]:
+    """Historial de citas COMPLETADAS (para el registro). Si se pasa empleado_filtro,
+    solo las atendidas por esa empleada (cada empleada ve únicamente las suyas)."""
+    async with async_session() as session:
+        query = (
+            select(Cita, Cliente, Servicio, Empleado.nombre)
+            .join(Cliente, Cita.cliente_id == Cliente.id)
+            .outerjoin(Servicio, Cita.servicio_id == Servicio.id)
+            .outerjoin(Empleado, Cita.empleado_id == Empleado.id)
+            .where(Cita.estado == "completada")
+            .order_by(Cita.inicia_en.desc())
+        )
+        if empleado_filtro:
+            query = query.where(Cita.empleado_id == uuid.UUID(empleado_filtro))
+        result = await session.execute(query)
+        registro = []
+        for cita, cliente, servicio, emp_nombre in result.all():
+            costo = cita.precio_cobrado if cita.precio_cobrado is not None else (servicio.precio if servicio else None)
+            registro.append({
+                "id": str(cita.id),
+                "cliente": cliente.nombre or "Sin nombre",
+                "telefono": cliente.telefono,
+                "servicio": servicio.nombre if servicio else "—",
+                "costo": float(costo) if costo is not None else None,
+                "inicia_en": cita.inicia_en.isoformat(),       # horario en que se atendió
+                "agendada_en": cita.creado_en.isoformat(),     # fecha en que se agendó
+                "empleada": emp_nombre,
+            })
+        return registro
+
+
 async def gestionar_empleados() -> list[dict]:
     """Lista TODAS las empleadas (activas e inactivas) con su turno, para administración."""
     async with async_session() as session:
