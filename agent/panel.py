@@ -291,7 +291,7 @@ _PAGINA_HTML = """<!DOCTYPE html>
       <div class="stat hoy"><div class="n" id="sHoy">·</div><div class="l">Citas hoy</div></div>
       <div class="stat pend"><div class="n" id="sPend">·</div><div class="l">Pendientes</div></div>
       <div class="stat conf"><div class="n" id="sConf">·</div><div class="l">Confirmadas</div></div>
-      <div class="stat tot"><div class="n" id="sTot">·</div><div class="l">Total</div></div>
+      <div class="stat tot"><div class="n" id="sTot">·</div><div class="l">Completadas</div></div>
     </section>
     <div class="barra">
       <div class="chips">
@@ -427,10 +427,11 @@ async function cambiarEmpleada(id, empleado_id){
   }catch(e){ toast("No se pudo asignar","err"); }
 }
 function stats(){
-  document.getElementById("sHoy").textContent  = citas.filter(c=>esHoy(c.inicia_en)).length;
+  // "Citas hoy" = activas de hoy (sin completadas/canceladas), para que cuadre con la lista
+  document.getElementById("sHoy").textContent  = citas.filter(c=>esHoy(c.inicia_en) && c.estado!=="completada" && c.estado!=="cancelada").length;
   document.getElementById("sPend").textContent = citas.filter(c=>c.estado==="pendiente").length;
   document.getElementById("sConf").textContent = citas.filter(c=>c.estado==="confirmada").length;
-  document.getElementById("sTot").textContent  = citas.length;
+  document.getElementById("sTot").textContent  = citas.filter(c=>c.estado==="completada").length;
 }
 function aplicarFiltro(){
   if(filtro==="proximas"){
