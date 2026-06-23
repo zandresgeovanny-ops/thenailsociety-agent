@@ -257,6 +257,9 @@ _PAGINA_HTML = """<!DOCTYPE html>
   .resumen-reg .pill{background:var(--rosa-suave); color:var(--rosa-2); border-radius:13px; padding:10px 18px; font-size:13.5px; font-weight:600; box-shadow:var(--sombra)}
   .resumen-reg .pill b{font-family:'Playfair Display',serif; font-size:19px; margin-left:4px}
   .costo{font-weight:700; color:var(--rosa-2)}
+  .tarjeta.grafica{padding:18px 20px 8px; margin-bottom:16px}
+  .grafica-titulo{font-weight:600; color:var(--rosa-2); font-size:12px; text-transform:uppercase; letter-spacing:.05em; margin-bottom:6px}
+  #graficaReg rect{transition:opacity .15s} #graficaReg rect:hover{opacity:.82}
   .chips{display:inline-flex; background:var(--panel); border:1px solid var(--linea); border-radius:12px; padding:4px; gap:2px; box-shadow:var(--sombra)}
   .chip{border:none; background:transparent; padding:8px 16px; border-radius:9px; cursor:pointer; color:var(--gris); font-weight:600; font-size:13.5px; transition:.18s}
   .chip:hover{color:var(--rosa)}
@@ -397,10 +400,15 @@ _PAGINA_HTML = """<!DOCTYPE html>
   <!-- ===== Vista Registro (citas completadas) ===== -->
   <section id="vistaRegistro" class="oculto">
     <div class="barra">
-      <h2 class="vtitulo">Registro de citas completadas</h2>
+      <h2 class="vtitulo">Registro e ingresos</h2>
       <input id="busqRegistro" class="busqueda" placeholder="Buscar por cliente, servicio o empleada…" oninput="renderRegistro()">
+      <button class="btn primary" style="margin:0" onclick="exportarCSV()">⬇ Exportar a Excel</button>
     </div>
     <div class="resumen-reg" id="resumenReg"></div>
+    <div class="tarjeta grafica" id="cardGrafica">
+      <div class="grafica-titulo">Ingresos por mes</div>
+      <div id="graficaReg"></div>
+    </div>
     <div class="tarjeta">
       <table>
         <thead><tr><th>Cita</th><th>Servicio</th><th>Costo</th><th>Empleada</th><th>Cliente</th><th>Agendada</th></tr></thead>
@@ -465,6 +473,7 @@ const TZ  = "America/Mazatlan";
 const ESTADOS = ["pendiente","confirmada","completada","cancelada","no_show"];
 const ESTADO_LABEL = {pendiente:"pendiente", confirmada:"confirmada", completada:"completada", cancelada:"cancelada", no_show:"no llegó"};
 const DIAS_ABREV = ["Lun","Mar","Mié","Jue","Vie","Sáb","Dom"];
+const MESES_AB = ["ene","feb","mar","abr","may","jun","jul","ago","sep","oct","nov","dic"];
 let filtro = "proximas", empleados = [], empleadosGestion = [], citas = [], registro = [], servicios = [], huella = "", esAdmin = true;
 let modoModal = "crear", editId = null;
 
@@ -689,7 +698,64 @@ async function eliminarEmpleado(id){
 // ---- Registro de citas completadas ----
 async function cargarRegistro(){
   try{ registro = await api("/registro"); }catch(e){ registro = []; }
+  renderGrafica();
   renderRegistro();
+}
+function renderGrafica(){
+  const cont = document.getElementById("graficaReg");
+  const porMes = {};
+  registro.forEach(r=>{
+    const ym = new Date(r.inicia_en).toLocaleDateString("en-CA",{timeZone:TZ}).slice(0,7); // YYYY-MM
+    porMes[ym] = (porMes[ym] || 0) + (r.costo || 0);
+  });
+  const meses = Object.keys(porMes).sort().slice(-8);  // últimos 8 meses
+  if(!meses.length){
+    document.getElementById("cardGrafica").style.display = "none";
+    return;
+  }
+  document.getElementById("cardGrafica").style.display = "";
+  const max = Math.max(...meses.map(m=>porMes[m])) || 1;
+  const H = 210, padB = 36, padT = 26, bw = 46;
+  const W = Math.max(meses.length * 78, 300);
+  const gap = (W - meses.length * bw) / (meses.length + 1);
+  let bars = "";
+  meses.forEach((m,i)=>{
+    const val = porMes[m];
+    const h = (H - padB - padT) * (val / max);
+    const x = gap + i * (bw + gap), y = H - padB - h;
+    const etiqueta = MESES_AB[parseInt(m.split("-")[1]) - 1];
+    bars += `<rect x="${x}" y="${y}" width="${bw}" height="${h}" rx="8" fill="url(#gradReg)"></rect>`;
+    bars += `<text x="${x+bw/2}" y="${y-8}" text-anchor="middle" font-size="12.5" font-weight="700" fill="#b83267">$${val.toLocaleString("es-MX")}</text>`;
+    bars += `<text x="${x+bw/2}" y="${H-12}" text-anchor="middle" font-size="12.5" fill="#9a8f97">${etiqueta}</text>`;
+  });
+  cont.innerHTML = `<svg viewBox="0 0 ${W} ${H}" style="width:100%; max-width:${W}px; height:auto; display:block">
+    <defs><linearGradient id="gradReg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#d6447a"/><stop offset="100%" stop-color="#b83267"/></linearGradient></defs>
+    ${bars}</svg>`;
+}
+function exportarCSV(){
+  const cab = ["Fecha cita","Hora","Servicio","Costo","Empleada","Cliente","Telefono","Agendada el"];
+  const filas = [cab];
+  registro.forEach(r=>{
+    const d = new Date(r.inicia_en);
+    filas.push([
+      d.toLocaleDateString("es-MX",{timeZone:TZ}),
+      d.toLocaleTimeString("es-MX",{timeZone:TZ,hour:"2-digit",minute:"2-digit",hour12:true}),
+      r.servicio,
+      r.costo != null ? r.costo : "",
+      r.empleada || "",
+      r.cliente,
+      r.telefono,
+      new Date(r.agendada_en).toLocaleDateString("es-MX",{timeZone:TZ}),
+    ]);
+  });
+  const csv = filas.map(f=>f.map(c=>`"${String(c).replace(/"/g,'""')}"`).join(",")).join("\\r\\n");
+  const blob = new Blob(["\\ufeff" + csv], {type:"text/csv;charset=utf-8"});  // BOM para que Excel lea acentos
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url; a.download = "registro-mdnails.csv"; a.click();
+  URL.revokeObjectURL(url);
+  toast("Archivo descargado");
 }
 function renderRegistro(){
   const q = (document.getElementById("busqRegistro").value || "").toLowerCase().trim();
