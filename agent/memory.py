@@ -156,6 +156,7 @@ class Cita(Base):
     origen: Mapped[str] = mapped_column(String(20), default="whatsapp")
     notas: Mapped[str | None] = mapped_column(Text, nullable=True)
     precio_cobrado: Mapped[float | None] = mapped_column(Numeric(10, 2), nullable=True)
+    recordatorio_enviado: Mapped[bool] = mapped_column(Boolean, default=False)
     creado_en: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_ahora)
 
 
@@ -493,6 +494,45 @@ async def buscar_empleada_disponible(inicia_en: datetime, termina_en: datetime) 
             if not choca:
                 return {"empleado_id": str(eid), "hay_personal": True}
         return {"empleado_id": None, "hay_personal": True}
+
+
+async def citas_por_recordar(horas_antes: int = 24) -> list[dict]:
+    """Citas activas dentro de las próximas `horas_antes` horas que aún no se han recordado."""
+    ahora = _ahora()
+    limite = ahora + timedelta(hours=horas_antes)
+    async with async_session() as session:
+        query = (
+            select(Cita, Cliente.nombre, Cliente.telefono, Servicio.nombre)
+            .join(Cliente, Cita.cliente_id == Cliente.id)
+            .outerjoin(Servicio, Cita.servicio_id == Servicio.id)
+            .where(
+                Cita.estado.in_(["pendiente", "confirmada"]),
+                Cita.recordatorio_enviado.is_(False),
+                Cita.inicia_en > ahora,
+                Cita.inicia_en <= limite,
+            )
+            .order_by(Cita.inicia_en.asc())
+        )
+        result = await session.execute(query)
+        return [
+            {
+                "id": str(c.id),
+                "telefono": tel,
+                "cliente": nombre or "",
+                "servicio": serv or "tu cita",
+                "inicia_en": c.inicia_en.isoformat(),
+            }
+            for c, nombre, tel, serv in result.all()
+        ]
+
+
+async def marcar_recordatorio_enviado(cita_id: str):
+    """Marca una cita como ya recordada para no enviar el recordatorio dos veces."""
+    async with async_session() as session:
+        await session.execute(
+            update(Cita).where(Cita.id == uuid.UUID(cita_id)).values(recordatorio_enviado=True)
+        )
+        await session.commit()
 
 
 async def registro_citas(empleado_filtro: str | None = None) -> list[dict]:

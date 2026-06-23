@@ -19,6 +19,7 @@ from agent.providers import obtener_proveedor
 from agent.panel import router as panel_router
 from agent.reservas import router as reservas_router
 from agent.auth import router as auth_router
+from agent.recordatorios import iniciar_recordatorios
 
 load_dotenv()
 
@@ -40,7 +41,11 @@ async def lifespan(app: FastAPI):
     logger.info("Base de datos inicializada")
     logger.info(f"Servidor AgentKit corriendo en puerto {PORT}")
     logger.info(f"Proveedor de WhatsApp: {proveedor.__class__.__name__}")
+    # Recordatorios automáticos de citas en segundo plano
+    tarea_recordatorios = iniciar_recordatorios(proveedor)
+    logger.info("Recordatorios automáticos activados")
     yield
+    tarea_recordatorios.cancel()
 
 
 app = FastAPI(
