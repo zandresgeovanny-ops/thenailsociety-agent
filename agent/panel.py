@@ -7,15 +7,19 @@ sesión por roles. El admin gestiona citas y empleadas; la empleada solo ve su
 agenda. Los datos se leen del lado del servidor (no se exponen públicamente).
 """
 
+import uuid
 import logging
+from datetime import datetime, timedelta
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
+from sqlalchemy.exc import IntegrityError
 
 from agent.memory import (
     listar_citas, listar_empleados, crear_empleado, actualizar_cita,
     desactivar_empleado, establecer_horario_empleado, gestionar_empleados,
-    eliminar_empleado, registro_citas,
+    eliminar_empleado, registro_citas, catalogo_servicios,
+    buscar_empleada_disponible, buscar_o_crear_cliente, guardar_cita, ZONA_SALON,
 )
 from agent.auth import usuario_actual, requiere_panel
 
@@ -23,7 +27,7 @@ logger = logging.getLogger("agentkit")
 
 router = APIRouter(prefix="/panel")
 
-ESTADOS_VALIDOS = {"pendiente", "confirmada", "cancelada", "completada"}
+ESTADOS_VALIDOS = {"pendiente", "confirmada", "cancelada", "completada", "no_show"}
 
 
 def _solo_admin(user: dict):
@@ -57,6 +61,52 @@ async def api_registro(user: dict = Depends(requiere_panel)):
     if user["rol"] == "empleada":
         return await registro_citas(empleado_filtro=user["empleado_id"])
     return await registro_citas()
+
+
+@router.get("/api/servicios")
+async def api_servicios(_: dict = Depends(requiere_panel)):
+    return await catalogo_servicios()
+
+
+@router.post("/api/citas")
+async def api_crear_cita(payload: dict, user: dict = Depends(requiere_panel)):
+    """Agendar una cita manualmente desde el panel (walk-in / clienta que llama)."""
+    _solo_admin(user)
+    nombre = (payload.get("nombre") or "").strip()
+    telefono = (payload.get("telefono") or "").strip()
+    servicio_id = payload.get("servicio_id")
+    empleado_id = payload.get("empleado_id") or None
+    fecha = payload.get("fecha")
+    hora = payload.get("hora")
+    if not all([nombre, telefono, servicio_id, fecha, hora]):
+        raise HTTPException(status_code=400, detail="Faltan datos para la cita")
+
+    servicios = await catalogo_servicios()
+    servicio = next((s for s in servicios if s["id"] == servicio_id), None)
+    if servicio is None:
+        raise HTTPException(status_code=400, detail="Servicio inválido")
+    try:
+        inicia_en = datetime.strptime(f"{fecha} {hora}", "%Y-%m-%d %H:%M").replace(tzinfo=ZONA_SALON)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Fecha u hora inválida")
+    termina_en = inicia_en + timedelta(minutes=servicio["duracion_min"])
+
+    # Si no se eligió empleada, intentar asignar una libre automáticamente
+    if not empleado_id:
+        disp = await buscar_empleada_disponible(inicia_en, termina_en)
+        empleado_id = disp["empleado_id"]  # libre o None (el admin la asigna luego)
+
+    cliente_id = await buscar_o_crear_cliente(telefono, nombre)
+    try:
+        await guardar_cita(
+            cliente_id=cliente_id, servicio_id=uuid.UUID(servicio_id),
+            inicia_en=inicia_en, termina_en=termina_en,
+            empleado_id=uuid.UUID(empleado_id) if empleado_id else None,
+            notas=f"Agendada desde el panel · {servicio['nombre']}", origen="panel",
+        )
+    except IntegrityError:
+        raise HTTPException(status_code=409, detail="Esa empleada ya tiene una cita a esa hora.")
+    return {"ok": True}
 
 
 @router.get("/api/empleados/gestion")
@@ -231,6 +281,7 @@ _PAGINA_HTML = """<!DOCTYPE html>
   .b-confirmada{background:#d8f3e6; color:#0f6b46}
   .b-cancelada{background:#fbdada; color:#a32222}
   .b-completada{background:#dbe8ff; color:#23509e}
+  .b-no_show{background:#ece8f4; color:#5b4a8a}
   select{font-family:inherit; font-size:13px; border:1px solid var(--linea); border-radius:9px; padding:7px 9px; background:#fff; color:var(--tinta); cursor:pointer; transition:.15s}
   select:hover{border-color:var(--rosa)}
   .estado-cell{display:flex; align-items:center; gap:10px; flex-wrap:wrap}
@@ -253,6 +304,8 @@ _PAGINA_HTML = """<!DOCTYPE html>
   .modal input[type=text], .modal input[type=time]{width:100%; padding:11px 13px; border:1px solid var(--linea); border-radius:11px; font-family:inherit; font-size:14px; margin-bottom:14px}
   .modal input:focus{outline:none; border-color:var(--rosa)}
   .modal input[type=range]{width:100%; margin-bottom:16px}
+  .modal input[type=date]{width:100%; padding:11px 13px; border:1px solid var(--linea); border-radius:11px; font-family:inherit; font-size:14px; margin-bottom:14px}
+  .modal select.sel-full{width:100%; padding:11px 13px; border:1px solid var(--linea); border-radius:11px; font-family:inherit; font-size:14px; margin-bottom:14px; background:#fff}
   .dias{display:flex; gap:6px; flex-wrap:wrap; margin-bottom:16px}
   .diachk{display:flex; align-items:center; gap:5px; font-size:13px; border:1px solid var(--linea); padding:6px 10px; border-radius:9px; cursor:pointer}
   .fila{display:flex; gap:10px; justify-content:flex-end}
@@ -316,6 +369,7 @@ _PAGINA_HTML = """<!DOCTYPE html>
         <button class="chip" data-f="completadas" onclick="setFiltro('completadas')">Completadas</button>
         <button class="chip" data-f="todas" onclick="setFiltro('todas')">Todas</button>
       </div>
+      <button class="btn primary oculto" id="btnNuevaCita" onclick="abrirModalCita()">+ Nueva cita</button>
     </div>
     <div class="tarjeta">
       <table>
@@ -379,14 +433,39 @@ _PAGINA_HTML = """<!DOCTYPE html>
   </div>
 </div>
 
+<!-- Modal nueva cita (agendar manual) -->
+<div class="overlay" id="overlayCita">
+  <div class="modal">
+    <h3>Nueva cita</h3>
+    <p>Agenda a una clienta que llamó o llegó al salón.</p>
+    <label>Nombre de la clienta</label>
+    <input type="text" id="citaNombre" placeholder="Ej. María López">
+    <label>WhatsApp / teléfono</label>
+    <input type="text" id="citaTel" placeholder="Ej. 6671234567">
+    <label>Servicio</label>
+    <select id="citaServicio" class="sel-full"></select>
+    <label>Empleada</label>
+    <select id="citaEmpleada" class="sel-full"></select>
+    <label>Día</label>
+    <input type="date" id="citaFecha">
+    <label>Hora</label>
+    <input type="time" id="citaHora" value="10:00">
+    <div class="fila">
+      <button class="btn ghost" onclick="cerrarModalCita()">Cancelar</button>
+      <button class="btn primary" style="margin:0" onclick="guardarCita()">Agendar</button>
+    </div>
+  </div>
+</div>
+
 <div id="toasts"></div>
 
 <script>
 const API = "/panel/api";
 const TZ  = "America/Mazatlan";
-const ESTADOS = ["pendiente","confirmada","cancelada","completada"];
+const ESTADOS = ["pendiente","confirmada","completada","cancelada","no_show"];
+const ESTADO_LABEL = {pendiente:"pendiente", confirmada:"confirmada", completada:"completada", cancelada:"cancelada", no_show:"no llegó"};
 const DIAS_ABREV = ["Lun","Mar","Mié","Jue","Vie","Sáb","Dom"];
-let filtro = "proximas", empleados = [], empleadosGestion = [], citas = [], registro = [], huella = "", esAdmin = true;
+let filtro = "proximas", empleados = [], empleadosGestion = [], citas = [], registro = [], servicios = [], huella = "", esAdmin = true;
 let modoModal = "crear", editId = null;
 
 async function api(path, opts){
@@ -429,7 +508,7 @@ function optsEmpleadas(sel){
   return '<option value="">— sin asignar —</option>' +
     empleados.map(e=>`<option value="${e.id}" ${e.id===sel?"selected":""}>${e.nombre}</option>`).join("");
 }
-function optsEstado(act){ return ESTADOS.map(s=>`<option value="${s}" ${s===act?"selected":""}>${s}</option>`).join(""); }
+function optsEstado(act){ return ESTADOS.map(s=>`<option value="${s}" ${s===act?"selected":""}>${ESTADO_LABEL[s]}</option>`).join(""); }
 
 // ---- Navegación entre vistas ----
 function verVista(v){
@@ -497,7 +576,9 @@ function pintar(){
       <td>${c.servicio}</td>
       <td><select onchange="cambiarEmpleada('${c.id}',this.value)" ${esAdmin?'':'disabled'}>${optsEmpleadas(c.empleado_id)}</select></td>
       <td><div class="estado-cell">
-        <span class="badge b-${c.estado}">${c.estado}</span>
+        <span class="badge b-${c.estado}">${ESTADO_LABEL[c.estado]||c.estado}</span>
+        ${c.estado!=="completada"?`<button class="mini ok" title="Marcar completada" onclick="cambiarEstado('${c.id}','completada')">✓ Completar</button>`:""}
+        ${c.estado!=="no_show"?`<button class="mini bad" title="La clienta no llegó" onclick="cambiarEstado('${c.id}','no_show')">No llegó</button>`:""}
         <select onchange="cambiarEstado('${c.id}',this.value)">${optsEstado(c.estado)}</select>
       </div></td>
     </tr>`;
@@ -641,6 +722,35 @@ function renderRegistro(){
   }).join("");
 }
 
+// ---- Agendar cita manual (admin) ----
+function abrirModalCita(){
+  document.getElementById("citaNombre").value = "";
+  document.getElementById("citaTel").value = "";
+  document.getElementById("citaServicio").innerHTML = servicios.map(s=>
+    `<option value="${s.id}">${s.nombre} · $${s.precio!=null?s.precio:0} (${s.duracion_min} min)</option>`).join("");
+  document.getElementById("citaEmpleada").innerHTML =
+    `<option value="">Asignar automáticamente</option>` + empleados.map(e=>`<option value="${e.id}">${e.nombre}</option>`).join("");
+  document.getElementById("citaFecha").value = new Date().toLocaleDateString("en-CA",{timeZone:TZ});
+  document.getElementById("citaHora").value = "10:00";
+  document.getElementById("overlayCita").classList.add("open");
+}
+function cerrarModalCita(){ document.getElementById("overlayCita").classList.remove("open"); }
+async function guardarCita(){
+  const datos = {
+    nombre: document.getElementById("citaNombre").value.trim(),
+    telefono: document.getElementById("citaTel").value.trim(),
+    servicio_id: document.getElementById("citaServicio").value,
+    empleado_id: document.getElementById("citaEmpleada").value || null,
+    fecha: document.getElementById("citaFecha").value,
+    hora: document.getElementById("citaHora").value,
+  };
+  if(!datos.nombre || !datos.telefono || !datos.fecha || !datos.hora){ toast("Completa nombre, teléfono, día y hora","err"); return; }
+  try{
+    await api("/citas",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(datos)});
+    cerrarModalCita(); toast("Cita agendada"); await cargar(true);
+  }catch(e){ toast("No se pudo agendar (¿horario ocupado?)","err"); }
+}
+
 // ---- Inicio ----
 (async function init(){
   try{
@@ -648,11 +758,14 @@ function renderRegistro(){
     esAdmin = yo.rol === "admin";
     document.getElementById("usrNombre").textContent = yo.nombre || "Usuaria";
     document.getElementById("usrRol").textContent = esAdmin ? "Administrador(a)" : "Empleada";
-    if(esAdmin) document.getElementById("navEmpleadas").classList.remove("oculto");
+    if(esAdmin){
+      document.getElementById("navEmpleadas").classList.remove("oculto");
+      document.getElementById("btnNuevaCita").classList.remove("oculto");
+    }
   }catch(e){ location.href = "/login"; return; }
   document.getElementById("tbody").innerHTML = Array.from({length:3}).map(()=>
     `<tr><td colspan="5"><div class="skel"></div></td></tr>`).join("");
-  if(esAdmin){ try{ empleados = await api("/empleados"); }catch(e){ empleados = []; } }
+  if(esAdmin){ try{ empleados = await api("/empleados"); servicios = await api("/servicios"); }catch(e){ empleados = []; servicios = []; } }
   await cargar(true);
   setInterval(()=>cargar(false), 7000);
 })();
