@@ -21,6 +21,7 @@ from fastapi import APIRouter, Request, HTTPException
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 
 from agent.memory import obtener_usuario_por_email, obtener_usuario_por_id
+from agent.branding import LOGO_DATA_URI
 
 logger = logging.getLogger("agentkit")
 router = APIRouter()
@@ -110,7 +111,7 @@ async def logout():
 
 @router.get("/login", response_class=HTMLResponse)
 async def pagina_login():
-    return _PAGINA_LOGIN
+    return _PAGINA_LOGIN.replace("__LOGO__", LOGO_DATA_URI)
 
 
 _PAGINA_LOGIN = """<!DOCTYPE html>
@@ -120,26 +121,26 @@ _PAGINA_LOGIN = """<!DOCTYPE html>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Playfair+Display:wght@600;700&display=swap" rel="stylesheet">
 <style>
-  :root{--rosa:#d6447a;--rosa-2:#b83267;--tinta:#2a2230;--gris:#9a8f97;--linea:#f0e6ec}
+  :root{--mag:#e8308f;--mag-2:#c41f73;--tinta:#f1ebf5;--gris:#9d92aa;--linea:#352c40;--panel:#221c2b;--bg:#141019}
   *{box-sizing:border-box}
   body{margin:0;min-height:100vh;display:grid;place-items:center;font-family:'Inter',system-ui,sans-serif;color:var(--tinta);
-    background:radial-gradient(700px 400px at 50% -10%,#fbe9f1,transparent 60%),#fbf7f9}
-  .card{background:#fff;border:1px solid var(--linea);border-radius:22px;box-shadow:0 16px 50px rgba(120,40,80,.14);padding:34px 30px;width:min(380px,92vw);animation:rise .4s ease both}
-  .logo{width:58px;height:58px;border-radius:17px;display:grid;place-items:center;background:linear-gradient(135deg,var(--rosa),var(--rosa-2));color:#fff;font-size:28px;margin:0 auto 16px;box-shadow:0 8px 20px rgba(184,50,103,.35)}
-  h1{font-family:'Playfair Display',serif;font-size:22px;text-align:center;margin:0 0 4px}
-  .sub{text-align:center;color:var(--gris);font-size:13.5px;margin:0 0 22px}
+    background:radial-gradient(720px 420px at 50% -10%, rgba(232,48,143,.20), transparent 60%), var(--bg)}
+  .card{background:var(--panel);border:1px solid var(--linea);border-radius:22px;box-shadow:0 24px 60px rgba(0,0,0,.55);padding:34px 30px;width:min(380px,92vw);animation:rise .4s ease both}
+  .logo{width:96px;height:96px;display:block;margin:0 auto 10px;border-radius:50%;box-shadow:0 0 0 1px var(--linea),0 12px 32px rgba(232,48,143,.28)}
+  .sub{text-align:center;color:var(--gris);font-size:13.5px;margin:6px 0 22px}
   label{font-size:13px;font-weight:600;color:var(--gris);display:block;margin-bottom:6px}
-  input{width:100%;padding:12px 13px;border:1.5px solid var(--linea);border-radius:12px;font-family:inherit;font-size:15px;margin-bottom:14px}
-  input:focus{outline:none;border-color:var(--rosa)}
-  button{width:100%;border:none;border-radius:13px;padding:13px;font-weight:700;font-size:15px;cursor:pointer;color:#fff;font-family:inherit;background:linear-gradient(135deg,var(--rosa),var(--rosa-2));box-shadow:0 6px 16px rgba(184,50,103,.35);transition:.15s}
+  input{width:100%;padding:12px 13px;border:1.5px solid var(--linea);border-radius:12px;font-family:inherit;font-size:15px;margin-bottom:14px;background:#1b1622;color:var(--tinta)}
+  input::placeholder{color:#6f6580}
+  input:focus{outline:none;border-color:var(--mag)}
+  button{width:100%;border:none;border-radius:13px;padding:13px;font-weight:700;font-size:15px;cursor:pointer;color:#fff;font-family:inherit;background:linear-gradient(135deg,var(--mag),var(--mag-2));box-shadow:0 8px 22px rgba(232,48,143,.4);transition:.15s}
+  button:hover{transform:translateY(-1px)}
   button:disabled{opacity:.5}
-  .err{background:#fbdada;color:#a32222;border-radius:10px;padding:10px 12px;font-size:13px;margin-bottom:14px;display:none}
+  .err{background:#3a1620;color:#ff9bb0;border:1px solid #5a2030;border-radius:10px;padding:10px 12px;font-size:13px;margin-bottom:14px;display:none}
   @keyframes rise{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:none}}
 </style></head>
 <body>
 <form class="card" onsubmit="entrar(event)">
-  <div class="logo">💅</div>
-  <h1>MDnails</h1>
+  <img class="logo" src="__LOGO__" alt="MD nails">
   <p class="sub">Panel de gestión · inicia sesión</p>
   <div class="err" id="err"></div>
   <label>Correo</label>

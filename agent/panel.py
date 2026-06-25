@@ -22,6 +22,7 @@ from agent.memory import (
     buscar_empleada_disponible, buscar_o_crear_cliente, guardar_cita, ZONA_SALON,
 )
 from agent.auth import usuario_actual, requiere_panel
+from agent.branding import LOGO_DATA_URI
 
 logger = logging.getLogger("agentkit")
 
@@ -186,7 +187,7 @@ async def panel_home(request: Request):
         return RedirectResponse(url="/login", status_code=302)
     if user["rol"] not in ("admin", "empleada"):
         raise HTTPException(status_code=403, detail="Sin acceso al panel")
-    return _PAGINA_HTML
+    return _PAGINA_HTML.replace("__LOGO__", LOGO_DATA_URI)
 
 
 _PAGINA_HTML = """<!DOCTYPE html>
@@ -200,31 +201,30 @@ _PAGINA_HTML = """<!DOCTYPE html>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Playfair+Display:wght@600;700&display=swap" rel="stylesheet">
 <style>
   :root{
-    --rosa:#d6447a; --rosa-2:#b83267; --rosa-suave:#fdeef4; --rosa-borde:#f4d7e4;
-    --tinta:#2a2230; --gris:#9a8f97; --bg:#fbf7f9; --panel:#ffffff; --linea:#f0e6ec;
-    --ok:#1f9d6b; --warn:#c98a00; --bad:#d84a4a; --info:#3b73d6;
-    --sombra:0 6px 24px rgba(120,40,80,.08);
+    --rosa:#e8308f; --rosa-2:#c41f73; --rosa-suave:#2a1830; --rosa-borde:#4a2f44;
+    --tinta:#f1ebf5; --gris:#9d92aa; --bg:#141019; --panel:#221c2b; --linea:#352c40;
+    --ok:#2ecb8f; --warn:#e0a52a; --bad:#ef6b6b; --info:#5b9bf0;
+    --sombra:0 10px 30px rgba(0,0,0,.45);
   }
   *{box-sizing:border-box}
   html,body{margin:0}
   body{
     font-family:'Inter',system-ui,sans-serif; color:var(--tinta);
     background:
-      radial-gradient(1200px 600px at 100% -10%, #fbe9f1 0%, transparent 55%),
-      radial-gradient(900px 500px at -10% 0%, #f3ecfa 0%, transparent 50%),
+      radial-gradient(1200px 600px at 100% -10%, rgba(232,48,143,.16) 0%, transparent 55%),
+      radial-gradient(900px 500px at -10% 0%, rgba(150,48,160,.14) 0%, transparent 50%),
       var(--bg);
     min-height:100vh;
   }
   header{
     position:sticky; top:0; z-index:20; backdrop-filter:saturate(1.2) blur(8px);
-    background:rgba(255,255,255,.82); border-bottom:1px solid var(--linea);
+    background:rgba(28,22,36,.82); border-bottom:1px solid var(--linea);
     padding:14px 28px; display:flex; align-items:center; gap:14px; flex-wrap:wrap;
   }
   .marca{display:flex; align-items:center; gap:12px}
   .logo{
-    width:42px; height:42px; border-radius:13px; display:grid; place-items:center;
-    background:linear-gradient(135deg,var(--rosa),var(--rosa-2)); color:#fff; font-size:20px;
-    box-shadow:0 6px 16px rgba(184,50,103,.35); animation:pop .5s ease both;
+    width:46px; height:46px; border-radius:50%;
+    box-shadow:0 0 0 1px var(--linea), 0 6px 16px rgba(232,48,143,.3); animation:pop .5s ease both;
   }
   .marca h1{font-family:'Playfair Display',serif; font-size:20px; margin:0; line-height:1}
   .marca span{font-size:12px; color:var(--gris)}
@@ -251,10 +251,11 @@ _PAGINA_HTML = """<!DOCTYPE html>
   .stat.conf .n{color:var(--ok)} .stat.tot .n{color:var(--info)}
   .barra{display:flex; align-items:center; gap:10px; margin-bottom:16px; flex-wrap:wrap}
   .vtitulo{font-family:'Playfair Display',serif; font-size:20px; margin:0}
-  .busqueda{margin-left:auto; padding:9px 14px; border:1px solid var(--linea); border-radius:11px; font-family:inherit; font-size:13.5px; min-width:min(280px,60vw); transition:border-color .15s}
+  .busqueda{margin-left:auto; padding:9px 14px; border:1px solid var(--linea); border-radius:11px; font-family:inherit; font-size:13.5px; min-width:min(280px,60vw); transition:border-color .15s; background:#1b1622; color:var(--tinta)}
+  .busqueda::placeholder{color:#6f6580}
   .busqueda:focus{outline:none; border-color:var(--rosa)}
   .resumen-reg{display:flex; gap:14px; margin-bottom:16px; flex-wrap:wrap}
-  .resumen-reg .pill{background:var(--rosa-suave); color:var(--rosa-2); border-radius:13px; padding:10px 18px; font-size:13.5px; font-weight:600; box-shadow:var(--sombra)}
+  .resumen-reg .pill{background:var(--rosa-suave); color:var(--rosa); border-radius:13px; padding:10px 18px; font-size:13.5px; font-weight:600; box-shadow:var(--sombra)}
   .resumen-reg .pill b{font-family:'Playfair Display',serif; font-size:19px; margin-left:4px}
   .costo{font-weight:700; color:var(--rosa-2)}
   .tarjeta.grafica{padding:18px 20px 8px; margin-bottom:16px}
@@ -267,13 +268,13 @@ _PAGINA_HTML = """<!DOCTYPE html>
   .btn{border:none; border-radius:11px; padding:9px 16px; cursor:pointer; font-weight:600; font-size:13.5px; transition:.18s; font-family:inherit}
   .btn.primary{background:linear-gradient(135deg,var(--rosa),var(--rosa-2)); color:#fff; box-shadow:0 4px 12px rgba(184,50,103,.3); margin-left:auto}
   .btn.primary:hover{transform:translateY(-1px); box-shadow:0 8px 18px rgba(184,50,103,.4)}
-  .btn.ghost{background:#f4eef1; color:var(--tinta)}
+  .btn.ghost{background:#2a2433; color:var(--tinta)}
   .tarjeta{background:var(--panel); border:1px solid var(--linea); border-radius:20px; box-shadow:var(--sombra); overflow:hidden}
   table{width:100%; border-collapse:collapse}
   th,td{text-align:left; padding:15px 18px; font-size:14px; vertical-align:middle}
-  thead th{background:var(--rosa-suave); color:var(--rosa-2); font-size:11.5px; text-transform:uppercase; letter-spacing:.06em; font-weight:700}
+  thead th{background:var(--rosa-suave); color:var(--rosa); font-size:11.5px; text-transform:uppercase; letter-spacing:.06em; font-weight:700}
   tbody tr{border-top:1px solid var(--linea); animation:rise .4s ease both}
-  tbody tr:hover{background:#fdf9fb}
+  tbody tr:hover{background:#2a2336}
   .hora-h{font-weight:700; font-size:15px}
   .hora-d{font-size:12px; color:var(--gris)}
   .hora-d::first-letter{text-transform:uppercase}
@@ -285,10 +286,10 @@ _PAGINA_HTML = """<!DOCTYPE html>
   .b-cancelada{background:#fbdada; color:#a32222}
   .b-completada{background:#dbe8ff; color:#23509e}
   .b-no_show{background:#ece8f4; color:#5b4a8a}
-  select{font-family:inherit; font-size:13px; border:1px solid var(--linea); border-radius:9px; padding:7px 9px; background:#fff; color:var(--tinta); cursor:pointer; transition:.15s}
+  select{font-family:inherit; font-size:13px; border:1px solid var(--linea); border-radius:9px; padding:7px 9px; background:#1b1622; color:var(--tinta); cursor:pointer; transition:.15s}
   select:hover{border-color:var(--rosa)}
   .estado-cell{display:flex; align-items:center; gap:10px; flex-wrap:wrap}
-  .mini{border:1px solid var(--linea); background:#fff; border-radius:9px; padding:6px 11px; cursor:pointer; font-size:12.5px; font-weight:600; color:var(--tinta); font-family:inherit; transition:.15s}
+  .mini{border:1px solid var(--linea); background:#1b1622; border-radius:9px; padding:6px 11px; cursor:pointer; font-size:12.5px; font-weight:600; color:var(--tinta); font-family:inherit; transition:.15s}
   .mini:hover{border-color:var(--rosa)}
   .mini.bad{color:var(--bad); border-color:#f3c7c7}
   .mini.ok{color:var(--ok); border-color:#bfe6d3}
@@ -297,23 +298,24 @@ _PAGINA_HTML = """<!DOCTYPE html>
   .vacio .ico{font-size:46px; opacity:.6}
   .vacio p{margin:12px 0 0; font-size:15px}
   .vacio a{color:var(--rosa); cursor:pointer; font-weight:600; text-decoration:underline}
-  .skel{height:14px; border-radius:6px; background:linear-gradient(90deg,#f0e6ec 25%,#f8eef3 37%,#f0e6ec 63%); background-size:400% 100%; animation:shimmer 1.4s infinite}
+  .skel{height:14px; border-radius:6px; background:linear-gradient(90deg,#241f2e 25%,#2e2738 37%,#241f2e 63%); background-size:400% 100%; animation:shimmer 1.4s infinite}
   .overlay{position:fixed; inset:0; background:rgba(42,34,48,.45); backdrop-filter:blur(2px); display:none; place-items:center; z-index:50; animation:fade .2s ease}
   .overlay.open{display:grid}
-  .modal{background:#fff; border-radius:20px; padding:26px; width:min(420px,92vw); box-shadow:0 20px 60px rgba(0,0,0,.25); animation:rise .25s ease}
+  .modal{background:var(--panel); border:1px solid var(--linea); border-radius:20px; padding:26px; width:min(420px,92vw); box-shadow:0 24px 60px rgba(0,0,0,.55); animation:rise .25s ease}
   .modal h3{font-family:'Playfair Display',serif; margin:0 0 4px}
   .modal p{margin:0 0 16px; color:var(--gris); font-size:13.5px}
   .modal label{font-size:13px; font-weight:600; color:var(--gris); display:block; margin:0 0 6px}
-  .modal input[type=text], .modal input[type=time]{width:100%; padding:11px 13px; border:1px solid var(--linea); border-radius:11px; font-family:inherit; font-size:14px; margin-bottom:14px}
+  .modal input[type=text], .modal input[type=time]{width:100%; padding:11px 13px; border:1px solid var(--linea); border-radius:11px; font-family:inherit; font-size:14px; margin-bottom:14px; background:#1b1622; color:var(--tinta)}
+  .modal input::placeholder{color:#6f6580}
   .modal input:focus{outline:none; border-color:var(--rosa)}
   .modal input[type=range]{width:100%; margin-bottom:16px}
-  .modal input[type=date]{width:100%; padding:11px 13px; border:1px solid var(--linea); border-radius:11px; font-family:inherit; font-size:14px; margin-bottom:14px}
-  .modal select.sel-full{width:100%; padding:11px 13px; border:1px solid var(--linea); border-radius:11px; font-family:inherit; font-size:14px; margin-bottom:14px; background:#fff}
+  .modal input[type=date]{width:100%; padding:11px 13px; border:1px solid var(--linea); border-radius:11px; font-family:inherit; font-size:14px; margin-bottom:14px; background:#1b1622; color:var(--tinta)}
+  .modal select.sel-full{width:100%; padding:11px 13px; border:1px solid var(--linea); border-radius:11px; font-family:inherit; font-size:14px; margin-bottom:14px; background:#1b1622; color:var(--tinta)}
   .dias{display:flex; gap:6px; flex-wrap:wrap; margin-bottom:16px}
   .diachk{display:flex; align-items:center; gap:5px; font-size:13px; border:1px solid var(--linea); padding:6px 10px; border-radius:9px; cursor:pointer}
   .fila{display:flex; gap:10px; justify-content:flex-end}
   #toasts{position:fixed; bottom:22px; right:22px; z-index:60; display:flex; flex-direction:column; gap:10px}
-  .toast{background:var(--tinta); color:#fff; padding:12px 18px; border-radius:12px; font-size:13.5px; box-shadow:0 10px 30px rgba(0,0,0,.25); animation:slideIn .3s ease}
+  .toast{background:#2a2433; color:#fff; border:1px solid var(--linea); padding:12px 18px; border-radius:12px; font-size:13.5px; box-shadow:0 10px 30px rgba(0,0,0,.45); animation:slideIn .3s ease}
   .toast.ok{background:#1f9d6b} .toast.err{background:#d84a4a}
   @keyframes pulse{0%{box-shadow:0 0 0 0 rgba(31,157,107,.5)}70%{box-shadow:0 0 0 9px rgba(31,157,107,0)}100%{box-shadow:0 0 0 0 rgba(31,157,107,0)}}
   @keyframes rise{from{opacity:0; transform:translateY(10px)}to{opacity:1; transform:none}}
@@ -341,8 +343,8 @@ _PAGINA_HTML = """<!DOCTYPE html>
 <body>
 <header>
   <div class="marca">
-    <div class="logo">💅</div>
-    <div><h1>MDnails</h1><span>Panel de administración</span></div>
+    <img class="logo" src="__LOGO__" alt="MD nails">
+    <div><h1>MD nails</h1><span>Panel de administración</span></div>
   </div>
   <div class="vivo"><span class="dot"></span><span id="vivoTxt">conectando…</span></div>
   <div class="usr"><span><b id="usrNombre">…</b><div class="rol" id="usrRol"></div></span><a class="salir" href="/logout">Salir</a></div>

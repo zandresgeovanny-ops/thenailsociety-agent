@@ -22,6 +22,7 @@ from agent.memory import (
     ZONA_SALON, catalogo_servicios, listar_empleados, slots_disponibles,
     buscar_o_crear_cliente, guardar_cita,
 )
+from agent.branding import LOGO_DATA_URI
 
 logger = logging.getLogger("agentkit")
 router = APIRouter(prefix="/reservar")
@@ -87,7 +88,7 @@ async def api_reservar(payload: dict):
 @router.get("", response_class=HTMLResponse)
 @router.get("/", response_class=HTMLResponse)
 async def pagina_reservar():
-    return _PAGINA_HTML
+    return _PAGINA_HTML.replace("__LOGO__", LOGO_DATA_URI)
 
 
 _PAGINA_HTML = """<!DOCTYPE html>
@@ -99,13 +100,13 @@ _PAGINA_HTML = """<!DOCTYPE html>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Playfair+Display:wght@600;700&display=swap" rel="stylesheet">
 <style>
-  :root{--rosa:#d6447a;--rosa-2:#b83267;--rosa-suave:#fdeef4;--tinta:#2a2230;--gris:#9a8f97;--panel:#fff;--linea:#f0e6ec;--ok:#1f9d6b;--sombra:0 6px 24px rgba(120,40,80,.08)}
+  :root{--rosa:#e8308f;--rosa-2:#c41f73;--rosa-suave:#2a1830;--tinta:#f1ebf5;--gris:#9d92aa;--panel:#221c2b;--linea:#352c40;--ok:#2ecb8f;--bg:#141019;--sombra:0 10px 30px rgba(0,0,0,.45)}
   *{box-sizing:border-box}
   body{margin:0;font-family:'Inter',system-ui,sans-serif;color:var(--tinta);
-    background:radial-gradient(800px 400px at 100% -10%,#fbe9f1,transparent 55%),#fbf7f9;min-height:100vh}
-  .wrap{max-width:560px;margin:0 auto;padding:20px 16px 60px}
+    background:radial-gradient(820px 440px at 100% -10%, rgba(232,48,143,.20), transparent 55%), var(--bg);min-height:100vh}
+  .wrap{max-width:560px;margin:0 auto;padding:20px 16px 40px}
   .head{text-align:center;margin:14px 0 22px}
-  .logo{width:54px;height:54px;border-radius:16px;display:inline-grid;place-items:center;background:linear-gradient(135deg,var(--rosa),var(--rosa-2));color:#fff;font-size:26px;box-shadow:0 8px 20px rgba(184,50,103,.35);animation:pop .5s ease both}
+  .logo{width:88px;height:88px;border-radius:50%;display:inline-block;box-shadow:0 0 0 1px var(--linea),0 12px 32px rgba(232,48,143,.28);animation:pop .5s ease both}
   .head h1{font-family:'Playfair Display',serif;font-size:24px;margin:12px 0 2px}
   .head p{color:var(--gris);margin:0;font-size:14px}
   /* Pasos */
@@ -116,37 +117,42 @@ _PAGINA_HTML = """<!DOCTYPE html>
   .panel h2{font-family:'Playfair Display',serif;font-size:19px;margin:0 0 4px}
   .panel .sub{color:var(--gris);font-size:13.5px;margin:0 0 16px}
   /* Tarjetas seleccionables */
-  .opt{border:1.5px solid var(--linea);border-radius:14px;padding:14px 16px;margin-bottom:10px;cursor:pointer;display:flex;align-items:center;gap:12px;transition:.15s;background:#fff}
+  .opt{border:1.5px solid var(--linea);border-radius:14px;padding:14px 16px;margin-bottom:10px;cursor:pointer;display:flex;align-items:center;gap:12px;transition:.15s;background:#1d1825}
   .opt:hover{border-color:var(--rosa);transform:translateY(-1px)}
-  .opt.sel{border-color:var(--rosa);background:var(--rosa-suave);box-shadow:0 4px 12px rgba(184,50,103,.15)}
+  .opt.sel{border-color:var(--rosa);background:var(--rosa-suave);box-shadow:0 4px 16px rgba(232,48,143,.22)}
   .opt .info{flex:1}
   .opt .n{font-weight:600}
   .opt .meta{font-size:12.5px;color:var(--gris);margin-top:2px}
-  .opt .precio{font-weight:700;color:var(--rosa-2)}
-  .avatar{width:38px;height:38px;border-radius:50%;background:linear-gradient(135deg,#f7c6dc,#e58cb4);display:grid;place-items:center;color:#fff;font-weight:700}
-  .cat{font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--rosa-2);font-weight:700;margin:14px 0 8px}
+  .opt .precio{font-weight:700;color:var(--rosa)}
+  .avatar{width:38px;height:38px;border-radius:50%;background:linear-gradient(135deg,#e8308f,#7d1a52);display:grid;place-items:center;color:#fff;font-weight:700}
+  .cat{font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--rosa);font-weight:700;margin:14px 0 8px}
   /* Fecha y slots */
-  input[type=date],input[type=text],input[type=tel]{width:100%;padding:12px 13px;border:1.5px solid var(--linea);border-radius:12px;font-family:inherit;font-size:15px;margin-bottom:12px}
+  input[type=date],input[type=text],input[type=tel]{width:100%;padding:12px 13px;border:1.5px solid var(--linea);border-radius:12px;font-family:inherit;font-size:15px;margin-bottom:12px;background:#1b1622;color:var(--tinta)}
+  input::placeholder{color:#6f6580}
   input:focus{outline:none;border-color:var(--rosa)}
   label{font-size:13px;font-weight:600;color:var(--gris);display:block;margin-bottom:6px}
   .slots{display:grid;grid-template-columns:repeat(auto-fill,minmax(78px,1fr));gap:9px;margin-top:6px}
-  .slot{border:1.5px solid var(--linea);border-radius:11px;padding:11px 6px;text-align:center;cursor:pointer;font-weight:600;font-size:14px;background:#fff;transition:.12s}
+  .slot{border:1.5px solid var(--linea);border-radius:11px;padding:11px 6px;text-align:center;cursor:pointer;font-weight:600;font-size:14px;background:#1d1825;transition:.12s}
   .slot:hover{border-color:var(--rosa)}
   .slot.sel{background:linear-gradient(135deg,var(--rosa),var(--rosa-2));color:#fff;border-color:transparent}
   .aviso{color:var(--gris);font-size:13.5px;text-align:center;padding:18px}
   /* Botones */
   .nav{display:flex;gap:10px;margin-top:18px}
   .btn{flex:1;border:none;border-radius:13px;padding:13px;font-weight:700;font-size:15px;cursor:pointer;font-family:inherit;transition:.15s}
-  .btn.primary{background:linear-gradient(135deg,var(--rosa),var(--rosa-2));color:#fff;box-shadow:0 6px 16px rgba(184,50,103,.35)}
+  .btn.primary{background:linear-gradient(135deg,var(--rosa),var(--rosa-2));color:#fff;box-shadow:0 8px 20px rgba(232,48,143,.38)}
   .btn.primary:disabled{opacity:.45;cursor:not-allowed;box-shadow:none}
-  .btn.ghost{background:#f4eef1;color:var(--tinta);flex:0 0 auto;padding:13px 18px}
+  .btn.ghost{background:#2a2433;color:var(--tinta);flex:0 0 auto;padding:13px 18px}
   /* Resumen / éxito */
   .resumen{background:var(--rosa-suave);border-radius:14px;padding:16px;margin-bottom:8px;font-size:14px;line-height:1.7}
-  .resumen b{color:var(--rosa-2)}
+  .resumen b{color:var(--rosa)}
   .exito{text-align:center;padding:14px}
-  .exito .check{width:70px;height:70px;border-radius:50%;background:var(--ok);color:#fff;font-size:38px;display:inline-grid;place-items:center;animation:pop .4s ease both}
+  .exito .check{width:70px;height:70px;border-radius:50%;background:var(--ok);color:#0c2a1f;font-size:38px;display:inline-grid;place-items:center;animation:pop .4s ease both}
   .exito h2{margin:16px 0 6px}
-  .skel{height:42px;border-radius:11px;background:linear-gradient(90deg,#f0e6ec 25%,#f8eef3 37%,#f0e6ec 63%);background-size:400% 100%;animation:shimmer 1.4s infinite}
+  .skel{height:42px;border-radius:11px;background:linear-gradient(90deg,#241f2e 25%,#2e2738 37%,#241f2e 63%);background-size:400% 100%;animation:shimmer 1.4s infinite}
+  /* Pie */
+  .pie{margin-top:26px;text-align:center;color:var(--gris);font-size:12.5px;line-height:1.7}
+  .pie .red{display:inline-flex;gap:16px;justify-content:center;margin-top:8px}
+  .pie a{color:var(--rosa);text-decoration:none;font-weight:600}
   @keyframes pop{from{opacity:0;transform:scale(.6)}to{opacity:1;transform:none}}
   @keyframes rise{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
   @keyframes shimmer{0%{background-position:100% 0}100%{background-position:-100% 0}}
@@ -155,8 +161,8 @@ _PAGINA_HTML = """<!DOCTYPE html>
 <body>
 <div class="wrap">
   <div class="head">
-    <div class="logo">💅</div>
-    <h1>MDnails</h1>
+    <img class="logo" src="__LOGO__" alt="MD nails">
+    <h1>MD nails</h1>
     <p>Reserva tu cita en segundos</p>
   </div>
   <div class="pasos">
@@ -164,6 +170,13 @@ _PAGINA_HTML = """<!DOCTYPE html>
     <div class="paso" data-p="3"></div><div class="paso" data-p="4"></div>
   </div>
   <div id="contenido"></div>
+  <div class="pie">
+    Blvd Benjamín Hill #3960 local 1, col Pemex · Culiacán, Sin.
+    <div class="red">
+      <a href="https://instagram.com/mdnailscln" target="_blank" rel="noopener">@mdnailscln</a>
+      <a href="https://wa.me/5216674281696" target="_blank" rel="noopener">WhatsApp</a>
+    </div>
+  </div>
 </div>
 
 <script>
