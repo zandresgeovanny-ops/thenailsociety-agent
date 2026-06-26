@@ -14,9 +14,11 @@ import uuid
 import logging
 from datetime import datetime, timedelta
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import HTMLResponse
 from sqlalchemy.exc import IntegrityError
+
+from agent.seguridad import limitar
 
 from agent.memory import (
     ZONA_SALON, catalogo_servicios, listar_empleados, slots_disponibles,
@@ -44,7 +46,8 @@ async def api_disponibilidad(servicio_id: str, fecha: str, empleado_id: str | No
 
 
 @router.post("/api/reservar")
-async def api_reservar(payload: dict):
+async def api_reservar(payload: dict, request: Request):
+    limitar(request, "reserva", maximo=6, ventana_seg=600)  # anti-spam de reservas públicas
     nombre = (payload.get("nombre") or "").strip()
     telefono = (payload.get("telefono") or "").strip()
     servicio_id = payload.get("servicio_id")
@@ -187,6 +190,8 @@ let servicios = [], empleados = [];
 const sel = { servicio:null, empleado:null, empleadoNombre:"Cualquiera disponible", fecha:null, hora:null };
 
 async function api(p, opts){ const r = await fetch(API+p, opts); if(!r.ok){ const e=await r.json().catch(()=>({})); throw new Error(e.detail||("HTTP "+r.status)); } return r.json(); }
+// Escapa texto para insertarlo de forma segura en HTML (evita XSS con nombres del salón)
+function esc(s){return String(s==null?"":s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;","\\"":"&quot;","'":"&#39;"}[c]));}
 function ampm(hhmm){ if(!hhmm) return ""; const [H,M]=hhmm.split(":").map(Number); const d=new Date(); d.setHours(H,M,0,0); return d.toLocaleTimeString("es-MX",{hour:"numeric",minute:"2-digit",hour12:true}); }
 function marcarPasos(){ document.querySelectorAll(".paso").forEach(p=>p.classList.toggle("on", +p.dataset.p <= paso)); }
 function hoyISO(){ return new Date().toLocaleDateString("en-CA",{timeZone:TZ}); }  // YYYY-MM-DD
@@ -202,9 +207,9 @@ async function pintarServicios(){
   for(const cat of cats){
     html += `<div class="cat">${cat}</div>`;
     for(const s of servicios.filter(x=>x.categoria===cat)){
-      const precio = s.precio!=null ? `$${s.precio}` : "";
+      const precio = s.precio!=null ? `$${esc(s.precio)}` : "";
       html += `<div class="opt ${sel.servicio===s.id?'sel':''}" onclick="elegirServicio('${s.id}')">
-        <div class="info"><div class="n">${s.nombre}</div><div class="meta">${s.duracion_min} min</div></div>
+        <div class="info"><div class="n">${esc(s.nombre)}</div><div class="meta">${esc(s.duracion_min)} min</div></div>
         <div class="precio">${precio}</div></div>`;
     }
   }
@@ -219,15 +224,22 @@ async function pintarEmpleados(){
   c.innerHTML = `<div class="panel"><h2>Elige tu manicurista</h2><p class="sub">Opcional — puedes dejar que el salón asigne.</p><div id="lista"></div>
     <div class="nav"><button class="btn ghost" onclick="pintarServicios()">Atrás</button></div></div>`;
   if(!empleados.length) empleados = await api("/empleados");
-  let html = `<div class="opt ${sel.empleado===null?'sel':''}" onclick="elegirEmpleado(null,'Cualquiera disponible')">
+  let html = `<div class="opt ${sel.empleado===null?'sel':''}" onclick="elegirEmpleado(null)">
       <div class="avatar">✨</div><div class="info"><div class="n">Cualquiera disponible</div><div class="meta">El salón asigna</div></div></div>`;
   for(const e of empleados){
-    html += `<div class="opt ${sel.empleado===e.id?'sel':''}" onclick="elegirEmpleado('${e.id}','${e.nombre}')">
-      <div class="avatar">${e.nombre[0]}</div><div class="info"><div class="n">${e.nombre}</div></div></div>`;
+    html += `<div class="opt ${sel.empleado===e.id?'sel':''}" onclick="elegirEmpleado('${e.id}')">
+      <div class="avatar">${esc(e.nombre[0])}</div><div class="info"><div class="n">${esc(e.nombre)}</div></div></div>`;
   }
   document.getElementById("lista").innerHTML = html;
 }
-function elegirEmpleado(id,nombre){ sel.empleado=id; sel.empleadoNombre=nombre; sel.hora=null; pintarFecha(); }
+// Solo se pasa el id (un UUID seguro); el nombre se busca aquí para no inyectarlo en el HTML
+function elegirEmpleado(id){
+  const e = id ? empleados.find(x=>x.id===id) : null;
+  sel.empleado = id;
+  sel.empleadoNombre = e ? e.nombre : "Cualquiera disponible";
+  sel.hora = null;
+  pintarFecha();
+}
 
 // ---------- Paso 3: fecha y hora ----------
 function pintarFecha(){
@@ -266,7 +278,7 @@ function pintarConfirmacion(){
   const f = new Date(sel.fecha+"T12:00:00").toLocaleDateString("es-MX",{weekday:"long",day:"numeric",month:"long"});
   const c = document.getElementById("contenido");
   c.innerHTML = `<div class="panel"><h2>Confirma tu cita</h2><p class="sub">Solo faltan tus datos.</p>
-    <div class="resumen">💅 <b>${s.nombre}</b> (${s.duracion_min} min)<br>👩 ${sel.empleadoNombre}<br>📅 ${f}<br>🕒 ${ampm(sel.hora)}</div>
+    <div class="resumen">💅 <b>${esc(s.nombre)}</b> (${esc(s.duracion_min)} min)<br>👩 ${esc(sel.empleadoNombre)}<br>📅 ${f}<br>🕒 ${ampm(sel.hora)}</div>
     <label>Tu nombre</label><input type="text" id="nombre" placeholder="Ej. Mariana López">
     <label>Tu WhatsApp</label><input type="tel" id="telefono" placeholder="Ej. 6671234567">
     <div class="nav">
@@ -290,7 +302,7 @@ function pintarExito(nombre){
   const f = new Date(sel.fecha+"T12:00:00").toLocaleDateString("es-MX",{weekday:"long",day:"numeric",month:"long"});
   document.getElementById("contenido").innerHTML = `<div class="panel exito">
     <div class="check">✓</div><h2>¡Cita reservada!</h2>
-    <p class="sub">Gracias ${nombre}, te esperamos.<br><b>${s.nombre}</b> · ${f} · ${ampm(sel.hora)}</p>
+    <p class="sub">Gracias ${esc(nombre)}, te esperamos.<br><b>${esc(s.nombre)}</b> · ${f} · ${ampm(sel.hora)}</p>
     <div class="nav"><button class="btn primary" onclick="location.reload()">Reservar otra</button></div></div>`;
 }
 

@@ -64,6 +64,30 @@ app.include_router(reservas_router)
 app.include_router(auth_router)
 
 
+@app.middleware("http")
+async def cabeceras_seguridad(request: Request, call_next):
+    """Cabeceras de seguridad básicas (anti-clickjacking, anti-sniffing)."""
+    respuesta = await call_next(request)
+    respuesta.headers["X-Content-Type-Options"] = "nosniff"
+    respuesta.headers["X-Frame-Options"] = "DENY"
+    respuesta.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+    # Content-Security-Policy: limita de dónde se cargan recursos para reducir
+    # el impacto de un XSS. Las páginas usan estilos/scripts inline y Google
+    # Fonts, así que se permiten explícitamente; todo lo demás queda bloqueado.
+    respuesta.headers["Content-Security-Policy"] = (
+        "default-src 'self'; "
+        "script-src 'self' 'unsafe-inline'; "
+        "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; "
+        "font-src https://fonts.gstatic.com; "
+        "img-src 'self' data:; "
+        "connect-src 'self'; "
+        "object-src 'none'; "
+        "base-uri 'self'; "
+        "frame-ancestors 'none'"
+    )
+    return respuesta
+
+
 @app.get("/")
 async def health_check():
     """Endpoint de salud para Railway/monitoreo."""
@@ -116,4 +140,4 @@ async def webhook_handler(request: Request):
 
     except Exception as e:
         logger.error(f"Error en webhook: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Error interno")

@@ -305,7 +305,7 @@ _PAGINA_HTML = """<!DOCTYPE html>
   .modal h3{font-family:'Playfair Display',serif; margin:0 0 4px}
   .modal p{margin:0 0 16px; color:var(--gris); font-size:13.5px}
   .modal label{font-size:13px; font-weight:600; color:var(--gris); display:block; margin:0 0 6px}
-  .modal input[type=text], .modal input[type=time]{width:100%; padding:11px 13px; border:1px solid var(--linea); border-radius:11px; font-family:inherit; font-size:14px; margin-bottom:14px; background:#1b1622; color:var(--tinta)}
+  .modal input[type=text], .modal input[type=time], .modal input[type=password]{width:100%; padding:11px 13px; border:1px solid var(--linea); border-radius:11px; font-family:inherit; font-size:14px; margin-bottom:14px; background:#1b1622; color:var(--tinta)}
   .modal input::placeholder{color:#6f6580}
   .modal input:focus{outline:none; border-color:var(--rosa)}
   .modal input[type=range]{width:100%; margin-bottom:16px}
@@ -347,7 +347,7 @@ _PAGINA_HTML = """<!DOCTYPE html>
     <div><h1>MD nails</h1><span>Panel de administración</span></div>
   </div>
   <div class="vivo"><span class="dot"></span><span id="vivoTxt">conectando…</span></div>
-  <div class="usr"><span><b id="usrNombre">…</b><div class="rol" id="usrRol"></div></span><a class="salir" href="/logout">Salir</a></div>
+  <div class="usr"><span><b id="usrNombre">…</b><div class="rol" id="usrRol"></div></span><a class="salir" style="cursor:pointer" onclick="abrirPass()">Contraseña</a><a class="salir" href="/logout">Salir</a></div>
 </header>
 
 <main>
@@ -467,6 +467,22 @@ _PAGINA_HTML = """<!DOCTYPE html>
   </div>
 </div>
 
+<!-- Modal cambiar contraseña -->
+<div class="overlay" id="overlayPass">
+  <div class="modal">
+    <h3>Cambiar contraseña</h3>
+    <p>Tu nueva contraseña debe tener al menos 8 caracteres.</p>
+    <label>Contraseña actual</label>
+    <input type="password" id="passActual" autocomplete="current-password">
+    <label>Nueva contraseña</label>
+    <input type="password" id="passNueva" autocomplete="new-password">
+    <div class="fila">
+      <button class="btn ghost" onclick="document.getElementById('overlayPass').classList.remove('open')">Cancelar</button>
+      <button class="btn primary" style="margin:0" onclick="guardarPass()">Guardar</button>
+    </div>
+  </div>
+</div>
+
 <div id="toasts"></div>
 
 <script>
@@ -484,6 +500,7 @@ async function api(path, opts){
   if(!r.ok) throw new Error("HTTP " + r.status);
   return r.status === 204 ? null : r.json();
 }
+function esc(s){return String(s==null?"":s).replace(/[&<>"']/g,function(c){return {"&":"&amp;","<":"&lt;",">":"&gt;","\\"":"&quot;","'":"&#39;"}[c];});}
 function toast(msg, tipo="ok"){
   const t = document.createElement("div");
   t.className = "toast " + tipo;
@@ -517,7 +534,7 @@ function fmt(iso){
 }
 function optsEmpleadas(sel){
   return '<option value="">— sin asignar —</option>' +
-    empleados.map(e=>`<option value="${e.id}" ${e.id===sel?"selected":""}>${e.nombre}</option>`).join("");
+    empleados.map(e=>`<option value="${e.id}" ${e.id===sel?"selected":""}>${esc(e.nombre)}</option>`).join("");
 }
 function optsEstado(act){ return ESTADOS.map(s=>`<option value="${s}" ${s===act?"selected":""}>${ESTADO_LABEL[s]}</option>`).join(""); }
 
@@ -583,8 +600,8 @@ function pintar(){
     const t = fmt(c.inicia_en);
     return `<tr style="animation-delay:${i*40}ms">
       <td><div class="hora-h">${t.h}</div><div class="hora-d">${t.d}</div></td>
-      <td><div class="cli">${c.cliente}</div><div class="tel">${c.telefono}</div></td>
-      <td>${c.servicio}</td>
+      <td><div class="cli">${esc(c.cliente)}</div><div class="tel">${esc(c.telefono)}</div></td>
+      <td>${esc(c.servicio)}</td>
       <td><select onchange="cambiarEmpleada('${c.id}',this.value)" ${esAdmin?'':'disabled'}>${optsEmpleadas(c.empleado_id)}</select></td>
       <td><div class="estado-cell">
         <span class="badge b-${c.estado}">${ESTADO_LABEL[c.estado]||c.estado}</span>
@@ -629,7 +646,7 @@ function renderEmpleados(){
       ? `<button class="mini bad" onclick="toggleBaja('${e.id}',false)">Dar de baja</button>`
       : `<button class="mini ok" onclick="toggleBaja('${e.id}',true)">Reactivar</button><button class="mini bad" onclick="eliminarEmpleado('${e.id}')">Eliminar</button>`;
     return `<tr style="${e.activo?'':'opacity:.55'}">
-      <td><b>${e.nombre}</b></td>
+      <td><b>${esc(e.nombre)}</b></td>
       <td>${turno}</td>
       <td>${estado}</td>
       <td><div class="acc"><button class="mini" onclick="editarTurno('${e.id}')">Editar turno</button>${baja}</div></td>
@@ -781,10 +798,10 @@ function renderRegistro(){
     const costo = (r.costo!=null) ? `$${r.costo.toLocaleString("es-MX")}` : "—";
     return `<tr style="animation-delay:${i*35}ms">
       <td><div class="hora-h">${t.h}</div><div class="hora-d">${t.d}</div></td>
-      <td>${r.servicio}</td>
+      <td>${esc(r.servicio)}</td>
       <td><span class="costo">${costo}</span></td>
-      <td>${r.empleada || "— sin asignar —"}</td>
-      <td><div class="cli">${r.cliente}</div><div class="tel">${r.telefono}</div></td>
+      <td>${esc(r.empleada || "— sin asignar —")}</td>
+      <td><div class="cli">${esc(r.cliente)}</div><div class="tel">${esc(r.telefono)}</div></td>
       <td>${agend}</td>
     </tr>`;
   }).join("");
@@ -795,9 +812,9 @@ function abrirModalCita(){
   document.getElementById("citaNombre").value = "";
   document.getElementById("citaTel").value = "";
   document.getElementById("citaServicio").innerHTML = servicios.map(s=>
-    `<option value="${s.id}">${s.nombre} · $${s.precio!=null?s.precio:0} (${s.duracion_min} min)</option>`).join("");
+    `<option value="${s.id}">${esc(s.nombre)} · $${s.precio!=null?s.precio:0} (${s.duracion_min} min)</option>`).join("");
   document.getElementById("citaEmpleada").innerHTML =
-    `<option value="">Asignar automáticamente</option>` + empleados.map(e=>`<option value="${e.id}">${e.nombre}</option>`).join("");
+    `<option value="">Asignar automáticamente</option>` + empleados.map(e=>`<option value="${e.id}">${esc(e.nombre)}</option>`).join("");
   document.getElementById("citaFecha").value = new Date().toLocaleDateString("en-CA",{timeZone:TZ});
   document.getElementById("citaHora").value = "10:00";
   document.getElementById("overlayCita").classList.add("open");
@@ -817,6 +834,23 @@ async function guardarCita(){
     await api("/citas",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(datos)});
     cerrarModalCita(); toast("Cita agendada"); await cargar(true);
   }catch(e){ toast("No se pudo agendar (¿horario ocupado?)","err"); }
+}
+
+// ---- Cambiar contraseña ----
+function abrirPass(){
+  document.getElementById("passActual").value="";
+  document.getElementById("passNueva").value="";
+  document.getElementById("overlayPass").classList.add("open");
+}
+async function guardarPass(){
+  const actual=document.getElementById("passActual").value, nueva=document.getElementById("passNueva").value;
+  if(nueva.length<8){ toast("La nueva contraseña debe tener al menos 8 caracteres","err"); return; }
+  try{
+    const r=await fetch("/mi-password",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({actual,nueva})});
+    if(!r.ok) throw 0;
+    document.getElementById("overlayPass").classList.remove("open");
+    toast("Contraseña actualizada");
+  }catch(e){ toast("No se pudo cambiar (¿la actual es correcta?)","err"); }
 }
 
 // ---- Inicio ----

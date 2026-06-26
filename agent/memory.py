@@ -637,6 +637,17 @@ async def obtener_usuario_por_id(usuario_id: str) -> dict | None:
         return _usuario_dict(u) if (u and u.activo) else None
 
 
+async def actualizar_password(usuario_id: str, password_hash: str) -> bool:
+    """Cambia la contraseña (ya hasheada) de un usuario."""
+    async with async_session() as session:
+        u = await session.get(Usuario, uuid.UUID(usuario_id))
+        if u is None:
+            return False
+        u.password_hash = password_hash
+        await session.commit()
+        return True
+
+
 async def actualizar_cita(
     cita_id: str,
     estado: str | None = None,

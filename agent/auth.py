@@ -20,14 +20,20 @@ import logging
 from fastapi import APIRouter, Request, HTTPException
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 
-from agent.memory import obtener_usuario_por_email, obtener_usuario_por_id
+from agent.memory import obtener_usuario_por_email, obtener_usuario_por_id, actualizar_password
 from agent.branding import aplicar_marca
+from agent.seguridad import limitar
 
 logger = logging.getLogger("agentkit")
 router = APIRouter()
 
-# Clave para firmar la cookie de sesión. ¡Configurar SECRET_KEY en Railway!
-SECRET_KEY = os.getenv("SECRET_KEY") or os.getenv("PANEL_PASSWORD") or "agentkit-dev-secret-cambiar"
+# Clave para firmar la cookie de sesión. SIEMPRE configurar SECRET_KEY en Railway.
+# Si no está, se usa una aleatoria por proceso (segura, pero cierra las sesiones al
+# reiniciar). Nunca un valor por defecto conocido (sería falsificable).
+SECRET_KEY = os.getenv("SECRET_KEY")
+if not SECRET_KEY:
+    SECRET_KEY = secrets.token_hex(32)
+    logger.warning("SECRET_KEY no configurada: usando una temporal. Configúrala en Railway para sesiones persistentes.")
 COOKIE = "sesion"
 ES_PROD = os.getenv("ENVIRONMENT", "development") == "production"
 ITERACIONES = 200_000
@@ -87,7 +93,8 @@ async def requiere_panel(request: Request) -> dict:
 
 # ---------- Rutas de login / logout ----------
 @router.post("/login")
-async def login(payload: dict):
+async def login(payload: dict, request: Request):
+    limitar(request, "login", maximo=10, ventana_seg=300)  # anti fuerza bruta
     email = (payload.get("email") or "").strip()
     password = payload.get("password") or ""
     user = await obtener_usuario_por_email(email)
@@ -107,6 +114,22 @@ async def logout():
     resp = RedirectResponse(url="/login", status_code=302)
     resp.delete_cookie(COOKIE)
     return resp
+
+
+@router.post("/mi-password")
+async def cambiar_mi_password(payload: dict, request: Request):
+    """Permite a cualquier usuario en sesión cambiar su propia contraseña."""
+    user = await usuario_actual(request)
+    if not user:
+        raise HTTPException(status_code=401, detail="Sesión requerida")
+    actual = payload.get("actual") or ""
+    nueva = payload.get("nueva") or ""
+    if not verify_password(actual, user["password_hash"]):
+        raise HTTPException(status_code=403, detail="Tu contraseña actual no es correcta")
+    if len(nueva) < 8:
+        raise HTTPException(status_code=400, detail="La nueva contraseña debe tener al menos 8 caracteres")
+    await actualizar_password(user["id"], hash_password(nueva))
+    return {"ok": True}
 
 
 @router.get("/login", response_class=HTMLResponse)
@@ -148,6 +171,7 @@ _PAGINA_LOGIN = """<!DOCTYPE html>
   <label>Contraseña</label>
   <input type="password" id="password" placeholder="••••••••" required>
   <button id="btn" type="submit">Entrar</button>
+  <p style="text-align:center;color:var(--gris);font-size:12px;margin:14px 0 0">¿Olvidaste tu contraseña? Pídele a tu administrador que la restablezca.</p>
 </form>
 <script>
 async function entrar(e){
