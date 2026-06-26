@@ -22,7 +22,7 @@ from agent.memory import (
     ZONA_SALON, catalogo_servicios, listar_empleados, slots_disponibles,
     buscar_o_crear_cliente, guardar_cita,
 )
-from agent.branding import LOGO_DATA_URI
+from agent.branding import aplicar_marca
 
 logger = logging.getLogger("agentkit")
 router = APIRouter(prefix="/reservar")
@@ -88,7 +88,7 @@ async def api_reservar(payload: dict):
 @router.get("", response_class=HTMLResponse)
 @router.get("/", response_class=HTMLResponse)
 async def pagina_reservar():
-    return _PAGINA_HTML.replace("__LOGO__", LOGO_DATA_URI)
+    return aplicar_marca(_PAGINA_HTML)
 
 
 _PAGINA_HTML = """<!DOCTYPE html>

@@ -21,7 +21,7 @@ from fastapi import APIRouter, Request, HTTPException
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 
 from agent.memory import obtener_usuario_por_email, obtener_usuario_por_id
-from agent.branding import LOGO_DATA_URI
+from agent.branding import aplicar_marca
 
 logger = logging.getLogger("agentkit")
 router = APIRouter()
@@ -111,7 +111,7 @@ async def logout():
 
 @router.get("/login", response_class=HTMLResponse)
 async def pagina_login():
-    return _PAGINA_LOGIN.replace("__LOGO__", LOGO_DATA_URI)
+    return aplicar_marca(_PAGINA_LOGIN)
 
 
 _PAGINA_LOGIN = """<!DOCTYPE html>

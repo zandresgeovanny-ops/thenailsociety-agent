@@ -22,7 +22,7 @@ from agent.memory import (
     buscar_empleada_disponible, buscar_o_crear_cliente, guardar_cita, ZONA_SALON,
 )
 from agent.auth import usuario_actual, requiere_panel
-from agent.branding import LOGO_DATA_URI
+from agent.branding import aplicar_marca
 
 logger = logging.getLogger("agentkit")
 
@@ -187,7 +187,7 @@ async def panel_home(request: Request):
         return RedirectResponse(url="/login", status_code=302)
     if user["rol"] not in ("admin", "empleada"):
         raise HTTPException(status_code=403, detail="Sin acceso al panel")
-    return _PAGINA_HTML.replace("__LOGO__", LOGO_DATA_URI)
+    return aplicar_marca(_PAGINA_HTML)
 
 
 _PAGINA_HTML = """<!DOCTYPE html>
