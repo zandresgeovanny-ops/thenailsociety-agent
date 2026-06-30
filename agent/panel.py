@@ -452,10 +452,10 @@ _PAGINA_HTML = """<!DOCTYPE html>
       <label>Contraseña (mínimo 8 caracteres)</label>
       <input type="password" id="inpEmpPass" placeholder="••••••••">
     </div>
-    <label>Hora de entrada</label>
-    <input type="time" id="inpHoraInicio" value="09:00">
-    <label>Duración del turno: <b id="lblDur">8 horas</b></label>
-    <input type="range" id="inpDur" min="1" max="10" value="8" oninput="document.getElementById('lblDur').textContent=this.value+(this.value==='1'?' hora':' horas')">
+    <label>Entrada</label>
+    <input type="time" id="inpHoraInicio" value="09:00" onchange="recalcSalida()">
+    <label>Salida: <b id="lblSalida">5:00 p. m.</b> · turno de <b id="lblDur">8</b> h</label>
+    <input type="range" id="inpDur" min="1" max="10" value="8" oninput="document.getElementById('lblDur').textContent=this.value; recalcSalida()">
     <label>Días de trabajo</label>
     <div class="dias" id="diasBox"></div>
     <div class="fila">
@@ -704,6 +704,13 @@ function construirDias(seleccion){
   document.getElementById("diasBox").innerHTML = DIAS_ABREV.map((d,i)=>
     `<label class="diachk"><input type="checkbox" value="${i}" ${seleccion.includes(i)?"checked":""}> ${d}</label>`).join("");
 }
+function recalcSalida(){
+  const [h,m] = (document.getElementById("inpHoraInicio").value || "09:00").split(":").map(Number);
+  let fin = h*60 + m + parseInt(document.getElementById("inpDur").value)*60;
+  if(fin > 1439) fin = 1439;
+  const d = new Date(); d.setHours(Math.floor(fin/60), fin%60, 0, 0);
+  document.getElementById("lblSalida").textContent = d.toLocaleTimeString("es-MX",{hour:"numeric",minute:"2-digit",hour12:true});
+}
 function abrirModalEmpleada(modo, emp){
   modoModal = modo; editId = emp ? emp.id : null;
   document.getElementById("modalTitulo").textContent = modo==="crear" ? "Nueva empleada" : "Editar turno";
@@ -716,7 +723,8 @@ function abrirModalEmpleada(modo, emp){
   document.getElementById("inpHoraInicio").value = (emp && emp.hora_inicio) ? emp.hora_inicio : "09:00";
   const dur = (emp && emp.duracion_horas) ? emp.duracion_horas : 8;
   document.getElementById("inpDur").value = dur;
-  document.getElementById("lblDur").textContent = dur + (dur===1 ? " hora" : " horas");
+  document.getElementById("lblDur").textContent = dur;
+  recalcSalida();
   construirDias((emp && emp.dias && emp.dias.length) ? emp.dias : [0,1,2,3,4,5]);
   document.getElementById("overlay").classList.add("open");
 }
