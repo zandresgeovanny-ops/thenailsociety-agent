@@ -428,6 +428,24 @@ async def crear_empleado(nombre: str, hora_inicio: str | None = None,
         return {"id": str(emp.id), "nombre": emp.nombre}
 
 
+async def crear_empleado_con_login(nombre: str, hora_inicio: str | None, duracion_horas,
+                                   dias: list | None, email: str, password_hash: str) -> dict:
+    """Crea una empleada + su turno + su usuario de acceso (rol empleada) en UNA transacción.
+    Si el correo ya existe, el commit lanza IntegrityError y NO queda empleada huérfana."""
+    async with async_session() as session:
+        emp = Empleado(nombre=nombre)
+        session.add(emp)
+        await session.flush()
+        if hora_inicio and dias:
+            await _set_horarios(session, emp.id, hora_inicio, duracion_horas, dias)
+        session.add(Usuario(
+            email=email.lower().strip(), password_hash=password_hash,
+            rol="empleada", nombre=nombre, empleado_id=emp.id,
+        ))
+        await session.commit()
+        return {"id": str(emp.id), "nombre": emp.nombre}
+
+
 async def desactivar_empleado(empleado_id: str, activo: bool) -> bool:
     """Da de baja (activo=False) o reactiva (activo=True) a una empleada."""
     async with async_session() as session:

@@ -16,12 +16,13 @@ from fastapi.responses import HTMLResponse, RedirectResponse
 from sqlalchemy.exc import IntegrityError
 
 from agent.memory import (
-    listar_citas, listar_empleados, crear_empleado, actualizar_cita,
+    listar_citas, listar_empleados, actualizar_cita,
     desactivar_empleado, establecer_horario_empleado, gestionar_empleados,
     eliminar_empleado, registro_citas, catalogo_servicios,
     buscar_empleada_disponible, buscar_o_crear_cliente, guardar_cita, ZONA_SALON,
+    crear_empleado_con_login,
 )
-from agent.auth import usuario_actual, requiere_panel
+from agent.auth import usuario_actual, requiere_panel, hash_password
 from agent.branding import aplicar_marca
 
 logger = logging.getLogger("agentkit")
@@ -120,14 +121,22 @@ async def api_empleados_gestion(user: dict = Depends(requiere_panel)):
 async def api_crear_empleado(payload: dict, user: dict = Depends(requiere_panel)):
     _solo_admin(user)
     nombre = (payload.get("nombre") or "").strip()
+    email = (payload.get("email") or "").strip()
+    password = payload.get("password") or ""
     if not nombre:
         raise HTTPException(status_code=400, detail="El nombre es obligatorio")
-    return await crear_empleado(
-        nombre,
-        hora_inicio=payload.get("hora_inicio"),
-        duracion_horas=payload.get("duracion_horas"),
-        dias=payload.get("dias"),
-    )
+    if "@" not in email or "." not in email:
+        raise HTTPException(status_code=400, detail="Correo inválido")
+    if len(password) < 8:
+        raise HTTPException(status_code=400, detail="La contraseña debe tener al menos 8 caracteres")
+    try:
+        return await crear_empleado_con_login(
+            nombre,
+            payload.get("hora_inicio"), payload.get("duracion_horas"), payload.get("dias"),
+            email, hash_password(password),
+        )
+    except IntegrityError:
+        raise HTTPException(status_code=409, detail="Ese correo ya está en uso")
 
 
 @router.post("/api/empleados/{empleado_id}/estado")
@@ -244,7 +253,7 @@ _PAGINA_HTML = """<!DOCTYPE html>
   .navlink{margin-left:auto; color:var(--rosa-2); font-weight:600; font-size:13px; text-decoration:none; border:1px dashed var(--rosa-borde); padding:8px 14px; border-radius:11px; transition:.15s}
   .navlink:hover{background:var(--rosa-suave)}
   .stats{display:grid; grid-template-columns:repeat(4,1fr); gap:16px; margin-bottom:24px}
-  .stat{background:var(--panel); border:1px solid var(--linea); border-radius:18px; padding:18px 20px; box-shadow:var(--sombra); animation:rise .5s ease both}
+  .stat{background:var(--panel); border:1px solid var(--linea); border-radius:18px; padding:18px 20px; box-shadow:var(--sombra); animation:rise .5s ease both; cursor:pointer}
   .stat .n{font-size:30px; font-weight:700; font-family:'Playfair Display',serif; line-height:1}
   .stat .l{font-size:12.5px; color:var(--gris); margin-top:6px; text-transform:uppercase; letter-spacing:.05em}
   .stat.hoy .n{color:var(--rosa)} .stat.pend .n{color:var(--warn)}
@@ -361,16 +370,17 @@ _PAGINA_HTML = """<!DOCTYPE html>
   <!-- ===== Vista Citas ===== -->
   <section id="vistaCitas">
     <section class="stats">
-      <div class="stat hoy"><div class="n" id="sHoy">·</div><div class="l">Citas hoy</div></div>
-      <div class="stat pend"><div class="n" id="sPend">·</div><div class="l">Pendientes</div></div>
-      <div class="stat conf"><div class="n" id="sConf">·</div><div class="l">Confirmadas</div></div>
-      <div class="stat tot"><div class="n" id="sTot">·</div><div class="l">Completadas</div></div>
+      <div class="stat hoy" onclick="irA('hoy')"><div class="n" id="sHoy">·</div><div class="l">Citas hoy</div></div>
+      <div class="stat pend" onclick="irA('pendientes')"><div class="n" id="sPend">·</div><div class="l">Pendientes</div></div>
+      <div class="stat conf" onclick="irA('confirmadas')"><div class="n" id="sConf">·</div><div class="l">Confirmadas</div></div>
+      <div class="stat tot" onclick="irA('completadas')"><div class="n" id="sTot">·</div><div class="l">Completadas</div></div>
     </section>
     <div class="barra">
       <div class="chips">
         <button class="chip activo" data-f="proximas" onclick="setFiltro('proximas')">Próximas</button>
         <button class="chip" data-f="hoy" onclick="setFiltro('hoy')">Hoy</button>
         <button class="chip" data-f="pendientes" onclick="setFiltro('pendientes')">Pendientes</button>
+        <button class="chip" data-f="confirmadas" onclick="setFiltro('confirmadas')">Confirmadas</button>
         <button class="chip" data-f="completadas" onclick="setFiltro('completadas')">Completadas</button>
         <button class="chip" data-f="todas" onclick="setFiltro('todas')">Todas</button>
       </div>
@@ -406,6 +416,12 @@ _PAGINA_HTML = """<!DOCTYPE html>
       <input id="busqRegistro" class="busqueda" placeholder="Buscar por cliente, servicio o empleada…" oninput="renderRegistro()">
       <button class="btn primary" style="margin:0" onclick="exportarCSV()">⬇ Exportar a Excel</button>
     </div>
+    <div class="chips" style="margin-bottom:14px">
+      <button class="chip activo" data-r="hoy" onclick="setRangoReg('hoy')">Hoy</button>
+      <button class="chip" data-r="semana" onclick="setRangoReg('semana')">Esta semana</button>
+      <button class="chip" data-r="mes" onclick="setRangoReg('mes')">Este mes</button>
+      <button class="chip" data-r="todo" onclick="setRangoReg('todo')">Todo</button>
+    </div>
     <div class="resumen-reg" id="resumenReg"></div>
     <div class="tarjeta grafica" id="cardGrafica">
       <div class="grafica-titulo">Ingresos por mes</div>
@@ -429,6 +445,12 @@ _PAGINA_HTML = """<!DOCTYPE html>
     <div id="campoNombre">
       <label>Nombre</label>
       <input type="text" id="inpEmpNombre" placeholder="Nombre de la empleada">
+    </div>
+    <div id="campoLogin">
+      <label>Correo (con esto inicia sesión)</label>
+      <input type="text" id="inpEmpCorreo" placeholder="ej. jessica@mdnails.com">
+      <label>Contraseña (mínimo 8 caracteres)</label>
+      <input type="password" id="inpEmpPass" placeholder="••••••••">
     </div>
     <label>Hora de entrada</label>
     <input type="time" id="inpHoraInicio" value="09:00">
@@ -492,12 +514,12 @@ const ESTADOS = ["pendiente","confirmada","completada","cancelada","no_show"];
 const ESTADO_LABEL = {pendiente:"pendiente", confirmada:"confirmada", completada:"completada", cancelada:"cancelada", no_show:"no llegó"};
 const DIAS_ABREV = ["Lun","Mar","Mié","Jue","Vie","Sáb","Dom"];
 const MESES_AB = ["ene","feb","mar","abr","may","jun","jul","ago","sep","oct","nov","dic"];
-let filtro = "proximas", empleados = [], empleadosGestion = [], citas = [], registro = [], servicios = [], huella = "", esAdmin = true;
+let filtro = "proximas", empleados = [], empleadosGestion = [], citas = [], registro = [], servicios = [], huella = "", esAdmin = true, rangoReg = "hoy";
 let modoModal = "crear", editId = null;
 
 async function api(path, opts){
   const r = await fetch(API + path, opts);
-  if(!r.ok) throw new Error("HTTP " + r.status);
+  if(!r.ok){ let d=""; try{ d=(await r.json()).detail; }catch(e){} throw new Error(d || ("HTTP " + r.status)); }
   return r.status === 204 ? null : r.json();
 }
 function esc(s){return String(s==null?"":s).replace(/[&<>"']/g,function(c){return {"&":"&amp;","<":"&lt;",">":"&gt;","\\"":"&quot;","'":"&#39;"}[c];});}
@@ -552,12 +574,36 @@ function verVista(v){
 // ---- Citas ----
 function setFiltro(f){
   filtro = f; huella = "";
-  document.querySelectorAll(".chip").forEach(c=>c.classList.toggle("activo", c.dataset.f===f));
+  document.querySelectorAll("#vistaCitas .chip").forEach(c=>c.classList.toggle("activo", c.dataset.f===f));
   pintar();
+}
+function irA(f){ verVista('citas'); setFiltro(f); }  // clic en una tarjeta de resumen
+function setRangoReg(r){
+  rangoReg = r;
+  document.querySelectorAll("#vistaRegistro .chip").forEach(c=>c.classList.toggle("activo", c.dataset.r===r));
+  renderRegistro();
+}
+function enRangoReg(iso){
+  if(rangoReg==="todo") return true;
+  const d = new Date(iso), ahora = new Date();
+  const dia = (x)=>x.toLocaleDateString("en-CA",{timeZone:TZ});
+  if(rangoReg==="hoy") return dia(d) === dia(ahora);
+  if(rangoReg==="mes") return dia(d).slice(0,7) === dia(ahora).slice(0,7);
+  if(rangoReg==="semana"){
+    const hoy0 = new Date(ahora); hoy0.setHours(0,0,0,0);
+    const dow = (hoy0.getDay()+6)%7;                 // 0 = lunes
+    const lunes = new Date(hoy0); lunes.setDate(hoy0.getDate()-dow);
+    const finSemana = new Date(lunes); finSemana.setDate(lunes.getDate()+7);
+    return d >= lunes && d < finSemana;
+  }
+  return true;
 }
 async function cambiarEstado(id, estado){
   try{ await api(`/citas/${id}/estado`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({estado})});
-    toast("Estado actualizado"); await cargar(true);
+    const msg = estado==="completada" ? "Cita completada · movida al historial"
+              : estado==="no_show"    ? "Marcada como “no llegó”"
+              : "Estado actualizado";
+    toast(msg); await cargar(true);
   }catch(e){ toast("No se pudo actualizar","err"); }
 }
 async function cambiarEmpleada(id, empleado_id){
@@ -579,6 +625,7 @@ function aplicarFiltro(){
   }
   if(filtro==="hoy")        return citas.filter(c=>esHoy(c.inicia_en) && c.estado!=="completada");
   if(filtro==="pendientes") return citas.filter(c=>c.estado==="pendiente");
+  if(filtro==="confirmadas")return citas.filter(c=>c.estado==="confirmada");
   if(filtro==="completadas")return citas.filter(c=>c.estado==="completada");
   return citas;
 }
@@ -662,7 +709,10 @@ function abrirModalEmpleada(modo, emp){
   document.getElementById("modalTitulo").textContent = modo==="crear" ? "Nueva empleada" : "Editar turno";
   document.getElementById("modalSub").textContent = modo==="crear" ? "Define su nombre y su turno de trabajo." : `Ajusta el turno de ${emp.nombre}.`;
   document.getElementById("campoNombre").style.display = modo==="crear" ? "block" : "none";
+  document.getElementById("campoLogin").style.display = modo==="crear" ? "block" : "none";
   document.getElementById("inpEmpNombre").value = "";
+  document.getElementById("inpEmpCorreo").value = "";
+  document.getElementById("inpEmpPass").value = "";
   document.getElementById("inpHoraInicio").value = (emp && emp.hora_inicio) ? emp.hora_inicio : "09:00";
   const dur = (emp && emp.duracion_horas) ? emp.duracion_horas : 8;
   document.getElementById("inpDur").value = dur;
@@ -683,17 +733,21 @@ async function guardarEmpleadaForm(){
   try{
     if(modoModal==="crear"){
       const nombre = document.getElementById("inpEmpNombre").value.trim();
+      const email = document.getElementById("inpEmpCorreo").value.trim();
+      const password = document.getElementById("inpEmpPass").value;
       if(!nombre){ toast("Escribe el nombre de la empleada","err"); return; }
+      if(!email.includes("@")){ toast("Escribe un correo válido para su acceso","err"); return; }
+      if(password.length<8){ toast("La contraseña debe tener al menos 8 caracteres","err"); return; }
       await api("/empleados",{method:"POST",headers:{"Content-Type":"application/json"},
-        body:JSON.stringify({nombre, hora_inicio, duracion_horas, dias})});
-      toast("Empleada agregada");
+        body:JSON.stringify({nombre, email, password, hora_inicio, duracion_horas, dias})});
+      toast("Empleada agregada con su acceso");
     }else{
       await api(`/empleados/${editId}/horario`,{method:"POST",headers:{"Content-Type":"application/json"},
         body:JSON.stringify({hora_inicio, duracion_horas, dias})});
       toast("Turno actualizado");
     }
     cerrarModal(); await recargarEmpleados();
-  }catch(e){ toast("No se pudo guardar","err"); }
+  }catch(e){ toast(e.message || "No se pudo guardar","err"); }
 }
 async function toggleBaja(id, activo){
   if(!activo && !confirm("¿Dar de baja a esta empleada? Ya no se le podrán asignar citas nuevas (puedes reactivarla después).")) return;
@@ -778,7 +832,7 @@ function exportarCSV(){
 }
 function renderRegistro(){
   const q = (document.getElementById("busqRegistro").value || "").toLowerCase().trim();
-  const lista = registro.filter(r => !q || `${r.cliente} ${r.servicio} ${r.empleada||""}`.toLowerCase().includes(q));
+  const lista = registro.filter(r => enRangoReg(r.inicia_en) && (!q || `${r.cliente} ${r.servicio} ${r.empleada||""}`.toLowerCase().includes(q)));
   const total = lista.reduce((s,r)=> s + (r.costo||0), 0);
   document.getElementById("resumenReg").innerHTML =
     `<div class="pill">Servicios realizados: <b>${lista.length}</b></div>` +
@@ -788,7 +842,8 @@ function renderRegistro(){
   if(!lista.length){
     tb.innerHTML = "";
     vac.style.display = "block";
-    vac.innerHTML = `<div class="ico">📋</div><p>Aún no hay citas completadas en el registro.</p>`;
+    const rangoTxt = {hoy:"hoy", semana:"esta semana", mes:"este mes", todo:"el registro"}[rangoReg] || "este rango";
+    vac.innerHTML = `<div class="ico">📋</div><p>No hay citas completadas en ${rangoTxt}.</p>`;
     return;
   }
   vac.style.display = "none";
