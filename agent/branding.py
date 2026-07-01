@@ -18,22 +18,17 @@ header,main,.wrap,form.card{position:relative;z-index:1}
 .tarjeta::after,.stat::after,.opt::after,.card::after,.panel::after{content:"";position:absolute;inset:0;border-radius:inherit;background:radial-gradient(200px circle at var(--mx,50%) var(--my,50%),rgba(232,48,143,.13),transparent 62%);opacity:0;transition:opacity .25s;pointer-events:none}
 .tarjeta:hover::after,.stat:hover::after,.opt:hover::after,.card:hover::after,.panel:hover::after{opacity:1}"""
 
-ANIM_JS = """;(function(){
-  var a=document.createElement("div");a.className="aurora";a.innerHTML='<b class="a"></b><b class="b"></b>';document.body.appendChild(a);
-  var MAG=".btn.primary, form.card button";var CARDS=".tarjeta,.stat,.opt,.card,.panel";
-  document.addEventListener("pointermove",function(e){
-    if(!e.target.closest)return;
-    var c=e.target.closest(CARDS);
-    if(c){var r=c.getBoundingClientRect();c.style.setProperty("--mx",(e.clientX-r.left)+"px");c.style.setProperty("--my",(e.clientY-r.top)+"px");}
-    var m=e.target.closest(MAG);
-    if(m){var b=m.getBoundingClientRect();m.style.transform="translate("+((e.clientX-(b.left+b.width/2))*0.15).toFixed(1)+"px,"+((e.clientY-(b.top+b.height/2))*0.26).toFixed(1)+"px)";}
-  });
-  document.addEventListener("pointerout",function(e){if(e.target.closest){var m=e.target.closest(MAG);if(m)m.style.transform="";}});
-})();"""
+# El JS de marca vive en static/marca.js (se carga como archivo externo, ver aplicar_marca).
+
 
 def aplicar_marca(html: str) -> str:
-    """Inyecta el logo y los efectos de marca en una pagina HTML."""
+    """Inyecta el logo y los efectos de marca en una pagina HTML.
+
+    El CSS se mete inline (los estilos no ejecutan código). El JS, en cambio, se
+    carga como archivo externo (/static/marca.js) para no usar scripts inline y
+    permitir una CSP estricta en las paginas publicas.
+    """
     html = html.replace("__LOGO__", LOGO_DATA_URI)
-    html = html.replace("</style>", ANIM_CSS + "</style>")
-    html = html.replace("</script>", ANIM_JS + "</script>")
+    html = html.replace("</head>", "<style>" + ANIM_CSS + "</style></head>", 1)
+    html = html.replace("</body>", '<script src="/static/marca.js"></script></body>', 1)
     return html

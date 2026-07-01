@@ -11,6 +11,7 @@ import logging
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request, HTTPException
 from fastapi.responses import PlainTextResponse
+from fastapi.staticfiles import StaticFiles
 from dotenv import load_dotenv
 
 from agent.brain import generar_respuesta
@@ -54,6 +55,9 @@ app = FastAPI(
     lifespan=lifespan
 )
 
+# Archivos estáticos (JS externalizado para poder usar una CSP estricta)
+app.mount("/static", StaticFiles(directory="static"), name="static")
+
 # Panel de administración de citas (dashboard web protegido con contraseña)
 app.include_router(panel_router)
 
@@ -72,11 +76,16 @@ async def cabeceras_seguridad(request: Request, call_next):
     respuesta.headers["X-Frame-Options"] = "DENY"
     respuesta.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
     # Content-Security-Policy: limita de dónde se cargan recursos para reducir
-    # el impacto de un XSS. Las páginas usan estilos/scripts inline y Google
-    # Fonts, así que se permiten explícitamente; todo lo demás queda bloqueado.
+    # el impacto de un XSS. Las páginas públicas (login y portal de reservas) ya
+    # tienen su JS externalizado, así que usan una política ESTRICTA sin
+    # 'unsafe-inline' en scripts. El panel (tras login) aún usa scripts inline,
+    # por eso conserva 'unsafe-inline'. Los estilos inline se permiten en ambas.
+    ruta = request.url.path
+    pagina_estricta = ruta == "/login" or ruta == "/reservar" or ruta.startswith("/reservar/")
+    script_src = "script-src 'self'" if pagina_estricta else "script-src 'self' 'unsafe-inline'"
     respuesta.headers["Content-Security-Policy"] = (
         "default-src 'self'; "
-        "script-src 'self' 'unsafe-inline'; "
+        f"{script_src}; "
         "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; "
         "font-src https://fonts.gstatic.com; "
         "img-src 'self' data:; "

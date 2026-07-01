@@ -162,7 +162,7 @@ _PAGINA_LOGIN = """<!DOCTYPE html>
   @keyframes rise{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:none}}
 </style></head>
 <body>
-<form class="card" onsubmit="entrar(event)">
+<form class="card" id="formLogin">
   <img class="logo" src="__LOGO__" alt="MD nails">
   <p class="sub">Panel de gestión · inicia sesión</p>
   <div class="err" id="err"></div>
@@ -173,18 +173,6 @@ _PAGINA_LOGIN = """<!DOCTYPE html>
   <button id="btn" type="submit">Entrar</button>
   <p style="text-align:center;color:var(--gris);font-size:12px;margin:14px 0 0">¿Olvidaste tu contraseña? Pídele a tu administrador que la restablezca.</p>
 </form>
-<script>
-async function entrar(e){
-  e.preventDefault();
-  const btn=document.getElementById("btn"); const err=document.getElementById("err");
-  btn.disabled=true; btn.textContent="Entrando..."; err.style.display="none";
-  try{
-    const r=await fetch("/login",{method:"POST",headers:{"Content-Type":"application/json"},
-      body:JSON.stringify({email:document.getElementById("email").value,password:document.getElementById("password").value})});
-    if(!r.ok){ const d=await r.json().catch(()=>({})); throw new Error(d.detail||"Error"); }
-    location.href="/panel";
-  }catch(ex){ err.textContent=ex.message; err.style.display="block"; btn.disabled=false; btn.textContent="Entrar"; }
-}
-</script>
+<script src="/static/login.js"></script>
 </body></html>
 """
