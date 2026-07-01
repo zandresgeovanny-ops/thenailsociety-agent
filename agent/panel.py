@@ -20,7 +20,8 @@ from agent.memory import (
     desactivar_empleado, establecer_horario_empleado, gestionar_empleados,
     eliminar_empleado, registro_citas, catalogo_servicios,
     buscar_empleada_disponible, buscar_o_crear_cliente, guardar_cita, ZONA_SALON,
-    crear_empleado_con_login,
+    crear_empleado_con_login, gestionar_servicios, guardar_servicio,
+    set_servicio_activo, restablecer_password_empleada,
 )
 from agent.auth import usuario_actual, requiere_panel, hash_password
 from agent.branding import aplicar_marca
@@ -115,6 +116,74 @@ async def api_crear_cita(payload: dict, user: dict = Depends(requiere_panel)):
 async def api_empleados_gestion(user: dict = Depends(requiere_panel)):
     _solo_admin(user)
     return await gestionar_empleados()
+
+
+# ---- Catálogo de servicios (el salón administra su propia carta y precios) ----
+def _parse_servicio(payload: dict):
+    """Valida y normaliza el payload de un servicio. Lanza HTTPException si algo falla."""
+    nombre = (payload.get("nombre") or "").strip()
+    if not nombre:
+        raise HTTPException(status_code=400, detail="El nombre del servicio es obligatorio")
+    categoria = (payload.get("categoria") or "").strip()
+    try:
+        duracion = int(payload.get("duracion_min") or 60)
+    except (ValueError, TypeError):
+        raise HTTPException(status_code=400, detail="Duración inválida")
+    if duracion < 5 or duracion > 600:
+        raise HTTPException(status_code=400, detail="La duración debe estar entre 5 y 600 minutos")
+    precio_raw = payload.get("precio")
+    precio = None
+    if precio_raw not in (None, ""):
+        try:
+            precio = float(precio_raw)
+        except (ValueError, TypeError):
+            raise HTTPException(status_code=400, detail="Precio inválido")
+        if precio < 0:
+            raise HTTPException(status_code=400, detail="El precio no puede ser negativo")
+    activo = bool(payload.get("activo", True))
+    return nombre, categoria, duracion, precio, activo
+
+
+@router.get("/api/servicios/gestion")
+async def api_servicios_gestion(user: dict = Depends(requiere_panel)):
+    _solo_admin(user)
+    return await gestionar_servicios()
+
+
+@router.post("/api/servicios")
+async def api_crear_servicio(payload: dict, user: dict = Depends(requiere_panel)):
+    _solo_admin(user)
+    nombre, categoria, duracion, precio, activo = _parse_servicio(payload)
+    return await guardar_servicio(None, nombre, categoria, duracion, precio, activo)
+
+
+@router.post("/api/servicios/{servicio_id}")
+async def api_editar_servicio(servicio_id: str, payload: dict, user: dict = Depends(requiere_panel)):
+    _solo_admin(user)
+    nombre, categoria, duracion, precio, activo = _parse_servicio(payload)
+    if await guardar_servicio(servicio_id, nombre, categoria, duracion, precio, activo) is None:
+        raise HTTPException(status_code=404, detail="Servicio no encontrado")
+    return {"ok": True}
+
+
+@router.post("/api/servicios/{servicio_id}/estado")
+async def api_servicio_estado(servicio_id: str, payload: dict, user: dict = Depends(requiere_panel)):
+    _solo_admin(user)
+    if not await set_servicio_activo(servicio_id, bool(payload.get("activo"))):
+        raise HTTPException(status_code=404, detail="Servicio no encontrado")
+    return {"ok": True}
+
+
+@router.post("/api/empleados/{empleado_id}/password")
+async def api_reset_password(empleado_id: str, payload: dict, user: dict = Depends(requiere_panel)):
+    """El admin restablece la contraseña de acceso de una empleada."""
+    _solo_admin(user)
+    password = payload.get("password") or ""
+    if len(password) < 8:
+        raise HTTPException(status_code=400, detail="La contraseña debe tener al menos 8 caracteres")
+    if not await restablecer_password_empleada(empleado_id, hash_password(password)):
+        raise HTTPException(status_code=404, detail="Esa empleada no tiene un usuario de acceso")
+    return {"ok": True}
 
 
 @router.post("/api/empleados")
@@ -429,6 +498,7 @@ _PAGINA_HTML = """<!DOCTYPE html>
     <button class="navbtn activo" data-v="citas" onclick="verVista('citas')">📅 Citas</button>
     <button class="navbtn" data-v="agenda" onclick="verVista('agenda')">🗓️ Agenda</button>
     <button class="navbtn" data-v="registro" onclick="verVista('registro')">📋 Registro</button>
+    <button class="navbtn oculto" id="navServicios" data-v="servicios" onclick="verVista('servicios')">💅 Servicios</button>
     <button class="navbtn oculto" id="navEmpleadas" data-v="empleadas" onclick="verVista('empleadas')">👩 Empleadas</button>
     <a class="navlink" href="/reservar" target="_blank" rel="noopener">Ver portal de clientas ↗</a>
   </nav>
@@ -487,6 +557,21 @@ _PAGINA_HTML = """<!DOCTYPE html>
         <thead><tr><th>Nombre</th><th>Turno</th><th>Estado</th><th>Acciones</th></tr></thead>
         <tbody id="tbodyEmp"></tbody>
       </table>
+    </div>
+  </section>
+
+  <!-- ===== Vista Servicios (catálogo y precios) ===== -->
+  <section id="vistaServicios" class="oculto">
+    <div class="barra">
+      <h2 class="vtitulo">Servicios y precios</h2>
+      <button class="btn primary" onclick="abrirModalServicio('crear')">+ Nuevo servicio</button>
+    </div>
+    <div class="tarjeta">
+      <table>
+        <thead><tr><th>Servicio</th><th>Categoría</th><th>Duración</th><th>Precio</th><th>Estado</th><th>Acciones</th></tr></thead>
+        <tbody id="tbodyServ"></tbody>
+      </table>
+      <div class="vacio" id="vacioServ" style="display:none"></div>
     </div>
   </section>
 
@@ -570,6 +655,41 @@ _PAGINA_HTML = """<!DOCTYPE html>
   </div>
 </div>
 
+<!-- Modal servicio (crear / editar) -->
+<div class="overlay" id="overlayServ">
+  <div class="modal">
+    <h3 id="servTitulo">Nuevo servicio</h3>
+    <p>Define el nombre, la categoría, la duración y el precio.</p>
+    <label>Nombre</label>
+    <input type="text" id="servNombre" placeholder="Ej. Uñas acrílicas">
+    <label>Categoría</label>
+    <input type="text" id="servCategoria" placeholder="Ej. Acrílico" list="listaCategorias">
+    <datalist id="listaCategorias"></datalist>
+    <label>Duración (minutos)</label>
+    <input type="text" id="servDuracion" inputmode="numeric" placeholder="60">
+    <label>Precio (MXN, opcional)</label>
+    <input type="text" id="servPrecio" inputmode="decimal" placeholder="Ej. 350">
+    <div class="fila">
+      <button class="btn ghost" onclick="cerrarModalServicio()">Cancelar</button>
+      <button class="btn primary" style="margin:0" onclick="guardarServicioForm()">Guardar</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal restablecer contraseña de una empleada -->
+<div class="overlay" id="overlayReset">
+  <div class="modal">
+    <h3>Restablecer contraseña</h3>
+    <p id="resetSub">Escribe una contraseña nueva para el acceso de la empleada.</p>
+    <label>Nueva contraseña (mínimo 8 caracteres)</label>
+    <input type="password" id="resetPass" autocomplete="new-password" placeholder="••••••••">
+    <div class="fila">
+      <button class="btn ghost" onclick="cerrarReset()">Cancelar</button>
+      <button class="btn primary" style="margin:0" onclick="guardarReset()">Guardar</button>
+    </div>
+  </div>
+</div>
+
 <!-- Modal reagendar / detalle de cita -->
 <div class="overlay" id="overlayReag">
   <div class="modal">
@@ -620,6 +740,7 @@ const MESES_AB = ["ene","feb","mar","abr","may","jun","jul","ago","sep","oct","n
 let filtro = "proximas", empleados = [], empleadosGestion = [], citas = [], registro = [], servicios = [], huella = "", esAdmin = true, rangoReg = "hoy";
 let modoModal = "crear", editId = null;
 let yo = null, agTurnos = null, agArrastrando = null, agendaFecha = null, reagId = null;
+let serviciosGestion = [], servEditId = null, resetEmpId = null;
 
 async function api(path, opts){
   const r = await fetch(API + path, opts);
@@ -666,7 +787,7 @@ function optsEstado(act){ return ESTADOS.map(s=>`<option value="${s}" ${s===act?
 
 // ---- Navegación entre vistas ----
 function verVista(v){
-  const vistas = {citas:"vistaCitas", agenda:"vistaAgenda", registro:"vistaRegistro", empleadas:"vistaEmpleadas"};
+  const vistas = {citas:"vistaCitas", agenda:"vistaAgenda", servicios:"vistaServicios", registro:"vistaRegistro", empleadas:"vistaEmpleadas"};
   Object.entries(vistas).forEach(([k,id])=> document.getElementById(id).classList.toggle("oculto", k!==v));
   document.querySelectorAll(".navbtn").forEach(b=>b.classList.toggle("activo", b.dataset.v===v));
   const sec = document.getElementById(vistas[v]);
@@ -674,6 +795,7 @@ function verVista(v){
   if(v==="empleadas") recargarEmpleados();
   if(v==="registro") cargarRegistro();
   if(v==="agenda") abrirAgenda();
+  if(v==="servicios") cargarServicios();
 }
 
 // ---- Citas ----
@@ -997,7 +1119,7 @@ function renderEmpleados(){
       <td><b>${esc(e.nombre)}</b></td>
       <td>${turno}</td>
       <td>${estado}</td>
-      <td><div class="acc"><button class="mini" onclick="editarTurno('${e.id}')">Editar turno</button>${baja}</div></td>
+      <td><div class="acc"><button class="mini" onclick="editarTurno('${e.id}')">Editar turno</button><button class="mini" onclick="abrirReset('${e.id}')">Contraseña</button>${baja}</div></td>
     </tr>`;
   }).join("");
 }
@@ -1075,6 +1197,95 @@ async function eliminarEmpleado(id){
     toast("Empleada eliminada");
     await recargarEmpleados();
   }catch(e){ toast("No se pudo eliminar","err"); }
+}
+
+// ---- Servicios y precios (catálogo) ----
+async function cargarServicios(){
+  try{ serviciosGestion = await api("/servicios/gestion"); }catch(e){ serviciosGestion = []; }
+  renderServicios();
+}
+function renderServicios(){
+  const cont = document.getElementById("tbodyServ");
+  const vac = document.getElementById("vacioServ");
+  if(!serviciosGestion.length){
+    cont.innerHTML = "";
+    vac.style.display = "block";
+    vac.innerHTML = `<div class="ico">💅</div><p>Aún no hay servicios. Agrega el primero con “+ Nuevo servicio”.</p>`;
+    return;
+  }
+  vac.style.display = "none";
+  cont.innerHTML = serviciosGestion.map(s=>{
+    const precio = (s.precio!=null) ? `<span class="costo">$${s.precio.toLocaleString("es-MX")}</span>` : `<span style="color:var(--gris)">— sin precio —</span>`;
+    const estado = s.activo ? `<span class="badge b-confirmada">activo</span>` : `<span class="badge b-cancelada">oculto</span>`;
+    const toggle = s.activo
+      ? `<button class="mini bad" onclick="toggleServicio('${s.id}',false)">Ocultar</button>`
+      : `<button class="mini ok" onclick="toggleServicio('${s.id}',true)">Mostrar</button>`;
+    return `<tr style="${s.activo?'':'opacity:.55'}">
+      <td><b>${esc(s.nombre)}</b></td>
+      <td>${esc(s.categoria) || "—"}</td>
+      <td>${s.duracion_min} min</td>
+      <td>${precio}</td>
+      <td>${estado}</td>
+      <td><div class="acc"><button class="mini" onclick="editarServicio('${s.id}')">Editar</button>${toggle}</div></td>
+    </tr>`;
+  }).join("");
+}
+function abrirModalServicio(modo, serv){
+  servEditId = serv ? serv.id : null;
+  document.getElementById("servTitulo").textContent = modo==="crear" ? "Nuevo servicio" : "Editar servicio";
+  document.getElementById("servNombre").value = serv ? serv.nombre : "";
+  document.getElementById("servCategoria").value = serv ? (serv.categoria||"") : "";
+  document.getElementById("servDuracion").value = serv ? serv.duracion_min : "60";
+  document.getElementById("servPrecio").value = (serv && serv.precio!=null) ? serv.precio : "";
+  // sugerencias de categorías existentes
+  const cats = [...new Set(serviciosGestion.map(s=>s.categoria).filter(Boolean))];
+  document.getElementById("listaCategorias").innerHTML = cats.map(c=>`<option value="${esc(c)}">`).join("");
+  document.getElementById("overlayServ").classList.add("open");
+}
+function editarServicio(id){ const s = serviciosGestion.find(x=>x.id===id); if(s) abrirModalServicio("editar", s); }
+function cerrarModalServicio(){ document.getElementById("overlayServ").classList.remove("open"); }
+async function guardarServicioForm(){
+  const datos = {
+    nombre: document.getElementById("servNombre").value.trim(),
+    categoria: document.getElementById("servCategoria").value.trim(),
+    duracion_min: document.getElementById("servDuracion").value.trim(),
+    precio: document.getElementById("servPrecio").value.trim(),
+  };
+  if(!datos.nombre){ toast("Escribe el nombre del servicio","err"); return; }
+  try{
+    const ruta = servEditId ? `/servicios/${servEditId}` : "/servicios";
+    await api(ruta,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(datos)});
+    cerrarModalServicio(); toast("Servicio guardado");
+    await cargarServicios();
+    try{ servicios = await api("/servicios"); }catch(e){}   // refrescar el catálogo del modal de citas
+  }catch(e){ toast(e.message || "No se pudo guardar","err"); }
+}
+async function toggleServicio(id, activo){
+  try{
+    await api(`/servicios/${id}/estado`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({activo})});
+    toast(activo ? "Servicio visible" : "Servicio oculto");
+    await cargarServicios();
+    try{ servicios = await api("/servicios"); }catch(e){}
+  }catch(e){ toast("No se pudo cambiar","err"); }
+}
+
+// ---- Restablecer contraseña de una empleada (admin) ----
+function abrirReset(id){
+  const e = empleadosGestion.find(x=>x.id===id);
+  resetEmpId = id;
+  document.getElementById("resetSub").textContent = e ? `Nueva contraseña para ${e.nombre}.` : "Escribe la contraseña nueva.";
+  document.getElementById("resetPass").value = "";
+  document.getElementById("overlayReset").classList.add("open");
+}
+function cerrarReset(){ document.getElementById("overlayReset").classList.remove("open"); resetEmpId=null; }
+async function guardarReset(){
+  if(!resetEmpId) return;
+  const pass = document.getElementById("resetPass").value;
+  if(pass.length < 8){ toast("La contraseña debe tener al menos 8 caracteres","err"); return; }
+  try{
+    await api(`/empleados/${resetEmpId}/password`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({password:pass})});
+    cerrarReset(); toast("Contraseña restablecida");
+  }catch(e){ toast(e.message || "No se pudo restablecer","err"); }
 }
 
 // ---- Registro de citas completadas ----
@@ -1225,6 +1436,7 @@ async function guardarPass(){
     document.getElementById("usrNombre").textContent = yo.nombre || "Usuaria";
     document.getElementById("usrRol").textContent = esAdmin ? "Administrador(a)" : "Empleada";
     if(esAdmin){
+      document.getElementById("navServicios").classList.remove("oculto");
       document.getElementById("navEmpleadas").classList.remove("oculto");
       document.getElementById("btnNuevaCita").classList.remove("oculto");
     }

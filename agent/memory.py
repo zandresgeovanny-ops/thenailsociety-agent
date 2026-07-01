@@ -233,6 +233,73 @@ async def listar_servicios() -> list[dict]:
         ]
 
 
+async def _buscar_o_crear_categoria(session, nombre: str | None) -> uuid.UUID | None:
+    """Devuelve el id de la categoría por nombre; la crea si no existe."""
+    nombre = (nombre or "").strip()
+    if not nombre:
+        return None
+    result = await session.execute(select(Categoria).where(Categoria.nombre == nombre))
+    cat = result.scalar_one_or_none()
+    if cat is None:
+        cat = Categoria(nombre=nombre)
+        session.add(cat)
+        await session.flush()
+    return cat.id
+
+
+async def gestionar_servicios() -> list[dict]:
+    """Lista TODOS los servicios (activos e inactivos) con su categoría, para administración."""
+    async with async_session() as session:
+        query = (
+            select(Servicio, Categoria.nombre)
+            .outerjoin(Categoria, Servicio.categoria_id == Categoria.id)
+            .order_by(Servicio.nombre)
+        )
+        result = await session.execute(query)
+        return [
+            {
+                "id": str(s.id), "nombre": s.nombre, "categoria": cat or "",
+                "duracion_min": s.duracion_min,
+                "precio": float(s.precio) if s.precio is not None else None,
+                "activo": s.activo,
+            }
+            for s, cat in result.all()
+        ]
+
+
+async def guardar_servicio(servicio_id: str | None, nombre: str, categoria: str | None,
+                           duracion_min: int, precio: float | None, activo: bool = True) -> dict | None:
+    """Crea (servicio_id=None) o actualiza un servicio del catálogo. Reemplaza todos los
+    campos con los valores dados. Devuelve None si se pidió editar uno que no existe."""
+    async with async_session() as session:
+        cat_id = await _buscar_o_crear_categoria(session, categoria)
+        if servicio_id:
+            serv = await session.get(Servicio, uuid.UUID(servicio_id))
+            if serv is None:
+                return None
+        else:
+            serv = Servicio()
+            session.add(serv)
+        serv.nombre = nombre
+        serv.duracion_min = int(duracion_min)
+        serv.precio = precio
+        serv.categoria_id = cat_id
+        serv.activo = bool(activo)
+        await session.commit()
+        return {"id": str(serv.id)}
+
+
+async def set_servicio_activo(servicio_id: str, activo: bool) -> bool:
+    """Activa o desactiva un servicio del catálogo. Devuelve False si no existe."""
+    async with async_session() as session:
+        serv = await session.get(Servicio, uuid.UUID(servicio_id))
+        if serv is None:
+            return False
+        serv.activo = bool(activo)
+        await session.commit()
+        return True
+
+
 async def guardar_cita(
     cliente_id: uuid.UUID,
     servicio_id: uuid.UUID | None,
@@ -659,6 +726,21 @@ async def actualizar_password(usuario_id: str, password_hash: str) -> bool:
     """Cambia la contraseña (ya hasheada) de un usuario."""
     async with async_session() as session:
         u = await session.get(Usuario, uuid.UUID(usuario_id))
+        if u is None:
+            return False
+        u.password_hash = password_hash
+        await session.commit()
+        return True
+
+
+async def restablecer_password_empleada(empleado_id: str, password_hash: str) -> bool:
+    """El admin restablece la contraseña del login de una empleada (por su empleado_id).
+    Devuelve False si esa empleada no tiene usuario de acceso asociado."""
+    async with async_session() as session:
+        result = await session.execute(
+            select(Usuario).where(Usuario.empleado_id == uuid.UUID(empleado_id))
+        )
+        u = result.scalar_one_or_none()
         if u is None:
             return False
         u.password_hash = password_hash
