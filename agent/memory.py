@@ -160,6 +160,15 @@ class Cita(Base):
     creado_en: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_ahora)
 
 
+class Configuracion(Base):
+    """Configuración editable del negocio (clave-valor). Permite al salón cambiar
+    textos del bot (anuncios, mensajes) desde el panel, sin tocar código."""
+    __tablename__ = "configuracion"
+
+    clave: Mapped[str] = mapped_column(String(50), primary_key=True)
+    valor: Mapped[str] = mapped_column(Text, default="")
+
+
 async def inicializar_db():
     """Crea las tablas que falten (idempotente; en Supabase ya existen vía migraciones)."""
     async with engine.begin() as conn:
@@ -731,6 +740,25 @@ async def actualizar_password(usuario_id: str, password_hash: str) -> bool:
         u.password_hash = password_hash
         await session.commit()
         return True
+
+
+async def obtener_configuracion() -> dict:
+    """Devuelve toda la configuración editable del negocio como {clave: valor}."""
+    async with async_session() as session:
+        result = await session.execute(select(Configuracion))
+        return {c.clave: c.valor for c in result.scalars().all()}
+
+
+async def guardar_configuracion(cambios: dict) -> None:
+    """Inserta o actualiza los pares clave-valor de configuración indicados."""
+    async with async_session() as session:
+        for clave, valor in cambios.items():
+            existente = await session.get(Configuracion, clave)
+            if existente is not None:
+                existente.valor = valor or ""
+            else:
+                session.add(Configuracion(clave=clave, valor=valor or ""))
+        await session.commit()
 
 
 async def restablecer_password_empleada(empleado_id: str, password_hash: str) -> bool:

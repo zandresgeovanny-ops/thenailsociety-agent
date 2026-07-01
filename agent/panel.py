@@ -22,6 +22,7 @@ from agent.memory import (
     buscar_empleada_disponible, buscar_o_crear_cliente, guardar_cita, ZONA_SALON,
     crear_empleado_con_login, gestionar_servicios, guardar_servicio,
     set_servicio_activo, restablecer_password_empleada,
+    obtener_configuracion, guardar_configuracion,
 )
 from agent.auth import usuario_actual, requiere_panel, hash_password
 from agent.branding import aplicar_marca
@@ -183,6 +184,34 @@ async def api_reset_password(empleado_id: str, payload: dict, user: dict = Depen
         raise HTTPException(status_code=400, detail="La contraseña debe tener al menos 8 caracteres")
     if not await restablecer_password_empleada(empleado_id, hash_password(password)):
         raise HTTPException(status_code=404, detail="Esa empleada no tiene un usuario de acceso")
+    return {"ok": True}
+
+
+# ---- Configuración del bot (el salón edita anuncios/mensajes sin tocar código) ----
+# Solo estas claves son editables desde el panel (lista blanca) y con tope de tamaño.
+CONFIG_CLAVES = {"anuncios", "instrucciones_extra", "fallback_message", "error_message"}
+CONFIG_MAX_LEN = 4000
+
+
+@router.get("/api/configuracion")
+async def api_get_configuracion(user: dict = Depends(requiere_panel)):
+    _solo_admin(user)
+    return await obtener_configuracion()
+
+
+@router.post("/api/configuracion")
+async def api_set_configuracion(payload: dict, user: dict = Depends(requiere_panel)):
+    _solo_admin(user)
+    cambios = {}
+    for clave, valor in (payload or {}).items():
+        if clave not in CONFIG_CLAVES:
+            continue
+        texto = str(valor or "")
+        if len(texto) > CONFIG_MAX_LEN:
+            raise HTTPException(status_code=400, detail=f"'{clave}' supera el máximo de {CONFIG_MAX_LEN} caracteres")
+        cambios[clave] = texto
+    if cambios:
+        await guardar_configuracion(cambios)
     return {"ok": True}
 
 
@@ -484,7 +513,14 @@ _PAGINA_HTML = """<!DOCTYPE html>
   .ag-cita.est-no_show{border-left-color:var(--bad)}
   .ag-ghost{position:absolute; left:4px; right:4px; border-radius:9px; background:rgba(232,48,143,.22); border:2px dashed var(--rosa); color:var(--rosa); font-size:11px; font-weight:700; display:flex; align-items:flex-start; justify-content:center; padding-top:3px; pointer-events:none; z-index:5}
   .ag-vacio{padding:46px 20px; text-align:center; color:var(--gris)}
-  @media(max-width:760px){.stats{grid-template-columns:repeat(2,1fr)} .ag-hint{display:none} .ag-titulo{font-size:15px}}
+  /* ===== Configuración del bot ===== */
+  .cfg-lbl{display:block; font-weight:700; font-size:14px; margin:4px 0 4px}
+  .cfg-ayuda{color:var(--gris); font-size:12.5px; margin:0 0 8px}
+  .cfg-area,.cfg-input{width:100%; padding:11px 13px; border:1px solid var(--linea); border-radius:12px; font-family:inherit; font-size:14px; background:#1b1622; color:var(--tinta); margin-bottom:16px; resize:vertical}
+  .cfg-area:focus,.cfg-input:focus{outline:none; border-color:var(--rosa)}
+  .cfg-area::placeholder,.cfg-input::placeholder{color:#6f6580}
+  .cfg-grid{display:grid; grid-template-columns:1fr 1fr; gap:16px}
+  @media(max-width:760px){.stats{grid-template-columns:repeat(2,1fr)} .ag-hint{display:none} .ag-titulo{font-size:15px} .cfg-grid{grid-template-columns:1fr}}
 </style>
 </head>
 <body>
@@ -504,6 +540,7 @@ _PAGINA_HTML = """<!DOCTYPE html>
     <button class="navbtn" data-v="registro" onclick="verVista('registro')">📋 Registro</button>
     <button class="navbtn oculto" id="navServicios" data-v="servicios" onclick="verVista('servicios')">💅 Servicios</button>
     <button class="navbtn oculto" id="navEmpleadas" data-v="empleadas" onclick="verVista('empleadas')">👩 Empleadas</button>
+    <button class="navbtn oculto" id="navConfig" data-v="config" onclick="verVista('config')">⚙️ Bot</button>
     <a class="navlink" href="/reservar" target="_blank" rel="noopener">Ver portal de clientas ↗</a>
   </nav>
 
@@ -576,6 +613,41 @@ _PAGINA_HTML = """<!DOCTYPE html>
         <tbody id="tbodyServ"></tbody>
       </table>
       <div class="vacio" id="vacioServ" style="display:none"></div>
+    </div>
+  </section>
+
+  <!-- ===== Vista Configuración del bot ===== -->
+  <section id="vistaConfig" class="oculto">
+    <div class="barra">
+      <h2 class="vtitulo">Configuración del bot de WhatsApp</h2>
+    </div>
+    <div class="tarjeta" style="padding:22px 24px">
+      <p style="color:var(--gris);font-size:13.5px;margin:0 0 18px">
+        Lo que escribas aquí lo usa el bot al instante, sin reiniciar nada. Los servicios y precios se editan en la pestaña
+        <b>Servicios</b> (el bot ya los conoce en vivo).
+      </p>
+      <label class="cfg-lbl">📣 Anuncios y promociones vigentes</label>
+      <p class="cfg-ayuda">Ej: “Esta semana 20% de descuento en gelish. Inauguramos servicio de pestañas.” El bot lo mencionará cuando venga al caso.</p>
+      <textarea id="cfgAnuncios" class="cfg-area" rows="4" maxlength="4000" placeholder="Escribe aquí promociones, avisos o novedades…"></textarea>
+
+      <label class="cfg-lbl">🧠 Instrucciones extra para el bot</label>
+      <p class="cfg-ayuda">Reglas o datos adicionales de cómo debe comportarse o responder. Opcional.</p>
+      <textarea id="cfgInstrucciones" class="cfg-area" rows="3" maxlength="4000" placeholder="Ej: Si preguntan por estacionamiento, avisa que hay lugar en la calle…"></textarea>
+
+      <div class="cfg-grid">
+        <div>
+          <label class="cfg-lbl">🤔 Mensaje cuando no entiende</label>
+          <input type="text" id="cfgFallback" class="cfg-input" maxlength="4000" placeholder="Disculpa, no entendí tu mensaje. ¿Podrías reformularlo? 💅">
+        </div>
+        <div>
+          <label class="cfg-lbl">⚠️ Mensaje de error técnico</label>
+          <input type="text" id="cfgError" class="cfg-input" maxlength="4000" placeholder="Lo siento, estoy teniendo problemas técnicos. Intenta de nuevo en unos minutos.">
+        </div>
+      </div>
+
+      <div class="fila" style="margin-top:20px">
+        <button class="btn primary" style="margin:0" onclick="guardarConfig()">Guardar cambios</button>
+      </div>
     </div>
   </section>
 
@@ -791,7 +863,7 @@ function optsEstado(act){ return ESTADOS.map(s=>`<option value="${s}" ${s===act?
 
 // ---- Navegación entre vistas ----
 function verVista(v){
-  const vistas = {citas:"vistaCitas", agenda:"vistaAgenda", servicios:"vistaServicios", registro:"vistaRegistro", empleadas:"vistaEmpleadas"};
+  const vistas = {citas:"vistaCitas", agenda:"vistaAgenda", servicios:"vistaServicios", config:"vistaConfig", registro:"vistaRegistro", empleadas:"vistaEmpleadas"};
   Object.entries(vistas).forEach(([k,id])=> document.getElementById(id).classList.toggle("oculto", k!==v));
   document.querySelectorAll(".navbtn").forEach(b=>b.classList.toggle("activo", b.dataset.v===v));
   const sec = document.getElementById(vistas[v]);
@@ -800,6 +872,7 @@ function verVista(v){
   if(v==="registro") cargarRegistro();
   if(v==="agenda") abrirAgenda();
   if(v==="servicios") cargarServicios();
+  if(v==="config") cargarConfig();
 }
 
 // ---- Citas ----
@@ -1273,6 +1346,28 @@ async function toggleServicio(id, activo){
   }catch(e){ toast("No se pudo cambiar","err"); }
 }
 
+// ---- Configuración del bot ----
+async function cargarConfig(){
+  let cfg = {};
+  try{ cfg = await api("/configuracion"); }catch(e){ cfg = {}; }
+  document.getElementById("cfgAnuncios").value = cfg.anuncios || "";
+  document.getElementById("cfgInstrucciones").value = cfg.instrucciones_extra || "";
+  document.getElementById("cfgFallback").value = cfg.fallback_message || "";
+  document.getElementById("cfgError").value = cfg.error_message || "";
+}
+async function guardarConfig(){
+  const datos = {
+    anuncios: document.getElementById("cfgAnuncios").value.trim(),
+    instrucciones_extra: document.getElementById("cfgInstrucciones").value.trim(),
+    fallback_message: document.getElementById("cfgFallback").value.trim(),
+    error_message: document.getElementById("cfgError").value.trim(),
+  };
+  try{
+    await api("/configuracion",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(datos)});
+    toast("Configuración guardada · el bot ya la usa");
+  }catch(e){ toast(e.message || "No se pudo guardar","err"); }
+}
+
 // ---- Restablecer contraseña de una empleada (admin) ----
 function abrirReset(id){
   const e = empleadosGestion.find(x=>x.id===id);
@@ -1442,6 +1537,7 @@ async function guardarPass(){
     if(esAdmin){
       document.getElementById("navServicios").classList.remove("oculto");
       document.getElementById("navEmpleadas").classList.remove("oculto");
+      document.getElementById("navConfig").classList.remove("oculto");
       document.getElementById("btnNuevaCita").classList.remove("oculto");
     }
   }catch(e){ location.href = "/login"; return; }

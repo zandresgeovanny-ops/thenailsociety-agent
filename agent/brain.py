@@ -17,6 +17,7 @@ from anthropic import AsyncAnthropic
 from dotenv import load_dotenv
 
 from agent.tools import TOOLS_CLAUDE, ejecutar_herramienta
+from agent.memory import obtener_configuracion
 
 load_dotenv()
 logger = logging.getLogger("agentkit")
@@ -84,6 +85,20 @@ def obtener_mensaje_fallback() -> str:
     return config.get("fallback_message", "Disculpa, no entendí tu mensaje. ¿Podrías reformularlo?")
 
 
+def componer_system_prompt(config_db: dict) -> str:
+    """Base de identidad desde prompts.yaml + capa editable desde la BD (anuncios,
+    promociones e instrucciones extra que el salón administra desde el panel).
+    Si la config de BD está vacía, el resultado es idéntico al de prompts.yaml."""
+    partes = [cargar_system_prompt()]
+    anuncios = (config_db.get("anuncios") or "").strip()
+    if anuncios:
+        partes.append("## Anuncios y promociones vigentes (información prioritaria y actual)\n" + anuncios)
+    extra = (config_db.get("instrucciones_extra") or "").strip()
+    if extra:
+        partes.append("## Instrucciones adicionales del negocio\n" + extra)
+    return "\n\n".join(partes)
+
+
 async def generar_respuesta(mensaje: str, historial: list[dict], telefono: str) -> str:
     """
     Genera una respuesta usando Claude API, permitiendo el uso de herramientas
@@ -97,12 +112,22 @@ async def generar_respuesta(mensaje: str, historial: list[dict], telefono: str) 
     Returns:
         La respuesta generada por Claude
     """
+    # Configuración editable del negocio (BD). Si falla la lectura, se usa lo de
+    # prompts.yaml — el bot nunca deja de responder por un problema de config.
+    config_db = {}
+    try:
+        config_db = await obtener_configuracion()
+    except Exception as e:
+        logger.error(f"No se pudo leer la configuración del negocio: {e}")
+    fallback = (config_db.get("fallback_message") or "").strip() or obtener_mensaje_fallback()
+    error_msg = (config_db.get("error_message") or "").strip() or obtener_mensaje_error()
+
     # Si el mensaje es muy corto o vacío, usar fallback
     if not mensaje or len(mensaje.strip()) < 2:
-        return obtener_mensaje_fallback()
+        return fallback
 
-    # System prompt estático (de prompts.yaml) + contexto temporal dinámico
-    system_prompt = cargar_system_prompt() + "\n\n" + construir_contexto_temporal()
+    # System prompt (identidad de prompts.yaml + capa editable de BD) + contexto temporal
+    system_prompt = componer_system_prompt(config_db) + "\n\n" + construir_contexto_temporal()
 
     # Construir mensajes para la API
     mensajes = []
@@ -132,7 +157,7 @@ async def generar_respuesta(mensaje: str, historial: list[dict], telefono: str) 
 
             if response.stop_reason != "tool_use":
                 bloques_texto = [bloque.text for bloque in response.content if bloque.type == "text"]
-                return "\n".join(bloques_texto).strip() or obtener_mensaje_fallback()
+                return "\n".join(bloques_texto).strip() or fallback
 
             # Claude pidió usar una o más herramientas: ejecutarlas y devolver los resultados
             mensajes.append({"role": "assistant", "content": response.content})
@@ -150,8 +175,8 @@ async def generar_respuesta(mensaje: str, historial: list[dict], telefono: str) 
             mensajes.append({"role": "user", "content": resultados_tools})
 
         logger.warning("Se alcanzó el límite de iteraciones de herramientas")
-        return obtener_mensaje_error()
+        return error_msg
 
     except Exception as e:
         logger.error(f"Error Claude API: {type(e).__name__}: {e} | causa: {type(e.__cause__).__name__}: {e.__cause__}")
-        return obtener_mensaje_error()
+        return error_msg
