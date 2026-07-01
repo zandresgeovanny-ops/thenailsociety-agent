@@ -11,6 +11,7 @@ La SECRET_KEY debe configurarse en producción (variable de entorno SECRET_KEY).
 """
 
 import os
+import time
 import hmac
 import base64
 import hashlib
@@ -37,6 +38,7 @@ if not SECRET_KEY:
 COOKIE = "sesion"
 ES_PROD = os.getenv("ENVIRONMENT", "development") == "production"
 ITERACIONES = 200_000
+SESION_MAX_SEG = 60 * 60 * 12  # vigencia del token de sesión (coincide con la cookie)
 
 
 # ---------- Hash de contraseñas ----------
@@ -58,16 +60,24 @@ def verify_password(password: str, almacenado: str) -> bool:
 
 
 # ---------- Cookie de sesión firmada ----------
+# El token incluye la marca de tiempo de emisión dentro de lo firmado, para que
+# el servidor pueda rechazar sesiones vencidas (no depende solo del navegador).
 def _firmar(uid: str) -> str:
-    firma = hmac.new(SECRET_KEY.encode(), uid.encode(), hashlib.sha256).hexdigest()
-    return f"{uid}.{firma}"
+    base = f"{uid}.{int(time.time())}"
+    firma = hmac.new(SECRET_KEY.encode(), base.encode(), hashlib.sha256).hexdigest()
+    return f"{base}.{firma}"
 
 
 def _leer_token(token: str) -> str | None:
     try:
-        uid, firma = token.rsplit(".", 1)
-        esperada = hmac.new(SECRET_KEY.encode(), uid.encode(), hashlib.sha256).hexdigest()
-        return uid if hmac.compare_digest(esperada, firma) else None
+        uid, ts, firma = token.split(".")
+        base = f"{uid}.{ts}"
+        esperada = hmac.new(SECRET_KEY.encode(), base.encode(), hashlib.sha256).hexdigest()
+        if not hmac.compare_digest(esperada, firma):
+            return None
+        if time.time() - int(ts) > SESION_MAX_SEG:  # sesión vencida
+            return None
+        return uid
     except Exception:
         return None
 
@@ -122,6 +132,7 @@ async def cambiar_mi_password(payload: dict, request: Request):
     user = await usuario_actual(request)
     if not user:
         raise HTTPException(status_code=401, detail="Sesión requerida")
+    limitar(request, "mi-password", maximo=10, ventana_seg=300)  # anti-adivinanza de la actual
     actual = payload.get("actual") or ""
     nueva = payload.get("nueva") or ""
     if not verify_password(actual, user["password_hash"]):

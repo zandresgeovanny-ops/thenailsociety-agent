@@ -752,11 +752,19 @@ async def actualizar_cita(
     cita_id: str,
     estado: str | None = None,
     empleado_id: str | None = None,
+    propietario_empleado_id: str | None = None,
 ) -> bool:
-    """Actualiza el estado y/o la empleada asignada de una cita. Devuelve False si no existe."""
+    """Actualiza el estado y/o la empleada asignada de una cita. Devuelve False si no existe.
+
+    Si se pasa `propietario_empleado_id`, la actualización solo procede cuando la cita
+    pertenece a esa empleada (control de acceso: evita que una empleada modifique la
+    agenda de otra conociendo su UUID).
+    """
     async with async_session() as session:
         cita = await session.get(Cita, uuid.UUID(cita_id))
         if cita is None:
+            return False
+        if propietario_empleado_id is not None and str(cita.empleado_id) != propietario_empleado_id:
             return False
         if estado is not None:
             cita.estado = estado

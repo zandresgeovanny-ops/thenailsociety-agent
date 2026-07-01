@@ -236,11 +236,15 @@ async def api_eliminar_empleado(empleado_id: str, user: dict = Depends(requiere_
 
 
 @router.post("/api/citas/{cita_id}/estado")
-async def api_estado(cita_id: str, payload: dict, _: dict = Depends(requiere_panel)):
+async def api_estado(cita_id: str, payload: dict, user: dict = Depends(requiere_panel)):
     estado = payload.get("estado")
     if estado not in ESTADOS_VALIDOS:
         raise HTTPException(status_code=400, detail="Estado inválido")
-    if not await actualizar_cita(cita_id, estado=estado):
+    # La empleada solo puede cambiar el estado de SUS propias citas; el admin, cualquiera.
+    kwargs = {}
+    if user["rol"] == "empleada":
+        kwargs["propietario_empleado_id"] = user["empleado_id"]
+    if not await actualizar_cita(cita_id, estado=estado, **kwargs):
         raise HTTPException(status_code=404, detail="Cita no encontrada")
     return {"ok": True}
 
