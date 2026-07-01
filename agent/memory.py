@@ -684,6 +684,53 @@ async def actualizar_cita(
         return True
 
 
+# Centinela: distingue "no tocar la empleada" de "asignar a None (sin empleada)".
+_MANTENER = "__mantener__"
+
+
+async def mover_cita(
+    cita_id: str,
+    inicia_en: datetime,
+    empleado_id: str | None = _MANTENER,
+    propietario_empleado_id: str | None = None,
+) -> bool:
+    """Reagenda una cita desde el panel (drag&drop): cambia su hora de inicio
+    conservando la duración original, y opcionalmente la reasigna a otra empleada.
+
+    - `empleado_id=_MANTENER` deja la empleada como está; cualquier otro valor la
+      reasigna (cadena vacía / None la deja sin asignar).
+    - `propietario_empleado_id`: si se pasa, solo mueve la cita cuando pertenece a
+      esa empleada (para que una empleada no toque agendas ajenas).
+
+    Devuelve False si la cita no existe (o no es de la empleada dueña). Si el nuevo
+    horario se encima con otra cita de la misma empleada, la base de datos rechaza
+    el cambio (constraint de no-solapamiento) y se propaga una IntegrityError.
+    """
+    async with async_session() as session:
+        cita = await session.get(Cita, uuid.UUID(cita_id))
+        if cita is None:
+            return False
+        if propietario_empleado_id is not None and str(cita.empleado_id) != propietario_empleado_id:
+            return False
+
+        # Conservar la duración: del rango actual o, si falta, del servicio (o 60 min).
+        if cita.termina_en:
+            duracion = cita.termina_en - cita.inicia_en
+        else:
+            duracion = timedelta(minutes=60)
+            if cita.servicio_id:
+                servicio = await session.get(Servicio, cita.servicio_id)
+                if servicio:
+                    duracion = timedelta(minutes=servicio.duracion_min)
+
+        cita.inicia_en = inicia_en
+        cita.termina_en = inicia_en + duracion
+        if empleado_id != _MANTENER:
+            cita.empleado_id = uuid.UUID(empleado_id) if empleado_id else None
+        await session.commit()
+        return True
+
+
 # ════════════════════════════════════════════════════════════
 # Gestión de citas por la propia clienta (desde WhatsApp)
 # El teléfono se toma del remitente: solo puede tocar SUS citas.

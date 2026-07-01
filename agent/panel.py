@@ -16,7 +16,7 @@ from fastapi.responses import HTMLResponse, RedirectResponse
 from sqlalchemy.exc import IntegrityError
 
 from agent.memory import (
-    listar_citas, listar_empleados, actualizar_cita,
+    listar_citas, listar_empleados, actualizar_cita, mover_cita,
     desactivar_empleado, establecer_horario_empleado, gestionar_empleados,
     eliminar_empleado, registro_citas, catalogo_servicios,
     buscar_empleada_disponible, buscar_o_crear_cliente, guardar_cita, ZONA_SALON,
@@ -185,6 +185,37 @@ async def api_empleado(cita_id: str, payload: dict, user: dict = Depends(requier
     return {"ok": True}
 
 
+@router.post("/api/citas/{cita_id}/mover")
+async def api_mover_cita(cita_id: str, payload: dict, user: dict = Depends(requiere_panel)):
+    """Reagenda una cita (drag&drop de la agenda): nueva fecha/hora y, para el admin,
+    opcionalmente otra empleada. La empleada solo puede mover SUS propias citas y no
+    reasignarlas a otra persona."""
+    fecha = payload.get("fecha")
+    hora = payload.get("hora")
+    try:
+        inicia_en = datetime.strptime(f"{fecha} {hora}", "%Y-%m-%d %H:%M").replace(tzinfo=ZONA_SALON)
+    except (ValueError, TypeError):
+        raise HTTPException(status_code=400, detail="Fecha u hora inválida")
+
+    # El admin puede reasignar empleada; la empleada solo mueve su propia agenda
+    # (mantiene su asignación y no puede tocar las citas de otra persona).
+    # Si no se incluye 'empleado_id' en la llamada, mover_cita conserva la actual.
+    if user["rol"] == "empleada":
+        kwargs = {"propietario_empleado_id": user["empleado_id"]}
+    else:
+        kwargs = {}
+        if "empleado_id" in payload:
+            kwargs["empleado_id"] = payload.get("empleado_id") or None  # "" => desasignar
+
+    try:
+        ok = await mover_cita(cita_id, inicia_en, **kwargs)
+    except IntegrityError:
+        raise HTTPException(status_code=409, detail="Ese horario se encima con otra cita de la misma empleada.")
+    if not ok:
+        raise HTTPException(status_code=404, detail="Cita no encontrada")
+    return {"ok": True}
+
+
 # ════════════════════════════════════════════════════════════
 # Página (exige sesión; si no hay, manda al login)
 # ════════════════════════════════════════════════════════════
@@ -346,7 +377,41 @@ _PAGINA_HTML = """<!DOCTYPE html>
   .chip:active{transform:scale(.95)}
   .badge{transition:transform .15s ease}
   tbody tr:hover .badge{transform:scale(1.06)}
-  @media(max-width:760px){.stats{grid-template-columns:repeat(2,1fr)}}
+  /* ===== Agenda (calendario por día) ===== */
+  .ag-barra{gap:8px}
+  .ag-nav{padding:9px 14px; font-size:18px; line-height:1}
+  .ag-fecha{min-width:auto; width:auto; margin:0}
+  .ag-titulo{font-size:18px; text-transform:capitalize; margin:0 0 0 4px}
+  .ag-hint{margin-left:auto; font-size:12.5px; color:var(--gris)}
+  .ag-wrap{padding:0}
+  .ag-scroll{overflow:auto; max-height:74vh}
+  .ag-grid{min-width:max-content}
+  .ag-cab{display:flex; position:sticky; top:0; z-index:6; background:rgba(34,28,43,.96); backdrop-filter:blur(6px); border-bottom:1px solid var(--linea)}
+  .ag-gutter-cab{width:56px; flex:none}
+  .ag-col-cab{flex:1; min-width:150px; padding:12px 10px; text-align:center; font-weight:700; font-size:13.5px; border-left:1px solid var(--linea); white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
+  .ag-col-cab.sin{color:var(--gris); font-weight:600}
+  .ag-cuerpo{display:flex; position:relative}
+  .ag-gutter{width:56px; flex:none; position:relative}
+  .ag-hl{position:absolute; right:8px; transform:translateY(-50%); font-size:11px; color:var(--gris); white-space:nowrap}
+  .ag-col{flex:1; min-width:150px; position:relative; border-left:1px solid var(--linea)}
+  .ag-col.sin{background:rgba(255,255,255,.012)}
+  .ag-linea{position:absolute; left:0; right:0; border-top:1px solid var(--linea); opacity:.5}
+  .ag-off{position:absolute; left:0; right:0; background:repeating-linear-gradient(45deg,rgba(0,0,0,.16),rgba(0,0,0,.16) 6px,transparent 6px,transparent 12px); pointer-events:none}
+  .ag-descansa{position:absolute; top:50%; left:0; right:0; transform:translateY(-50%); text-align:center; color:var(--gris); font-size:12px; letter-spacing:.04em; pointer-events:none}
+  .ag-cita{position:absolute; left:4px; right:4px; border-radius:9px; padding:5px 8px; overflow:hidden; cursor:grab; box-shadow:0 3px 10px rgba(0,0,0,.3); border-left:4px solid var(--rosa); background:var(--rosa-suave); color:var(--tinta); transition:transform .1s ease, box-shadow .15s ease; z-index:2}
+  .ag-cita:hover{box-shadow:0 6px 18px rgba(0,0,0,.4); transform:translateY(-1px); z-index:4}
+  .ag-cita:active{cursor:grabbing}
+  .ag-cita.drag{opacity:.4}
+  .ag-cita .ag-h{font-size:11px; font-weight:700; opacity:.9}
+  .ag-cita .ag-c{font-size:13px; font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
+  .ag-cita .ag-s{font-size:11.5px; color:var(--gris); white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
+  .ag-cita.est-pendiente{border-left-color:var(--warn)}
+  .ag-cita.est-confirmada{border-left-color:var(--ok)}
+  .ag-cita.est-completada{border-left-color:var(--info); opacity:.62}
+  .ag-cita.est-no_show{border-left-color:var(--bad)}
+  .ag-ghost{position:absolute; left:4px; right:4px; border-radius:9px; background:rgba(232,48,143,.22); border:2px dashed var(--rosa); color:var(--rosa); font-size:11px; font-weight:700; display:flex; align-items:flex-start; justify-content:center; padding-top:3px; pointer-events:none; z-index:5}
+  .ag-vacio{padding:46px 20px; text-align:center; color:var(--gris)}
+  @media(max-width:760px){.stats{grid-template-columns:repeat(2,1fr)} .ag-hint{display:none} .ag-titulo{font-size:15px}}
 </style>
 </head>
 <body>
@@ -362,6 +427,7 @@ _PAGINA_HTML = """<!DOCTYPE html>
 <main>
   <nav class="nav">
     <button class="navbtn activo" data-v="citas" onclick="verVista('citas')">📅 Citas</button>
+    <button class="navbtn" data-v="agenda" onclick="verVista('agenda')">🗓️ Agenda</button>
     <button class="navbtn" data-v="registro" onclick="verVista('registro')">📋 Registro</button>
     <button class="navbtn oculto" id="navEmpleadas" data-v="empleadas" onclick="verVista('empleadas')">👩 Empleadas</button>
     <a class="navlink" href="/reservar" target="_blank" rel="noopener">Ver portal de clientas ↗</a>
@@ -392,6 +458,21 @@ _PAGINA_HTML = """<!DOCTYPE html>
         <tbody id="tbody"></tbody>
       </table>
       <div class="vacio" id="vacio" style="display:none"></div>
+    </div>
+  </section>
+
+  <!-- ===== Vista Agenda (calendario por día, drag&drop) ===== -->
+  <section id="vistaAgenda" class="oculto">
+    <div class="barra ag-barra">
+      <button class="navbtn ag-nav" onclick="agendaDia(-1)" title="Día anterior">‹</button>
+      <input type="date" id="agendaFecha" class="busqueda ag-fecha" onchange="renderAgenda()">
+      <button class="navbtn ag-nav" onclick="agendaDia(1)" title="Día siguiente">›</button>
+      <button class="navbtn" onclick="agendaHoy()">Hoy</button>
+      <h2 class="vtitulo ag-titulo" id="agendaTitulo"></h2>
+      <span class="ag-hint">✋ Arrastra una cita para reagendarla · toca para más opciones</span>
+    </div>
+    <div class="tarjeta ag-wrap">
+      <div id="agendaScroll" class="ag-scroll"><div id="agendaGrid" class="ag-grid"></div></div>
     </div>
   </section>
 
@@ -489,6 +570,28 @@ _PAGINA_HTML = """<!DOCTYPE html>
   </div>
 </div>
 
+<!-- Modal reagendar / detalle de cita -->
+<div class="overlay" id="overlayReag">
+  <div class="modal">
+    <h3>Reagendar cita</h3>
+    <p id="reagSub">Cambia la hora, el día o la empleada.</p>
+    <div id="reagCampoEmp">
+      <label>Empleada</label>
+      <select id="reagEmp" class="sel-full"></select>
+    </div>
+    <label>Día</label>
+    <input type="date" id="reagFecha">
+    <label>Hora</label>
+    <input type="time" id="reagHora">
+    <label>Estado</label>
+    <select id="reagEstado" class="sel-full"></select>
+    <div class="fila">
+      <button class="btn ghost" onclick="cerrarReag()">Cancelar</button>
+      <button class="btn primary" style="margin:0" onclick="guardarReag()">Guardar cambios</button>
+    </div>
+  </div>
+</div>
+
 <!-- Modal cambiar contraseña -->
 <div class="overlay" id="overlayPass">
   <div class="modal">
@@ -516,6 +619,7 @@ const DIAS_ABREV = ["Lun","Mar","Mié","Jue","Vie","Sáb","Dom"];
 const MESES_AB = ["ene","feb","mar","abr","may","jun","jul","ago","sep","oct","nov","dic"];
 let filtro = "proximas", empleados = [], empleadosGestion = [], citas = [], registro = [], servicios = [], huella = "", esAdmin = true, rangoReg = "hoy";
 let modoModal = "crear", editId = null;
+let yo = null, agTurnos = null, agArrastrando = null, agendaFecha = null, reagId = null;
 
 async function api(path, opts){
   const r = await fetch(API + path, opts);
@@ -562,13 +666,14 @@ function optsEstado(act){ return ESTADOS.map(s=>`<option value="${s}" ${s===act?
 
 // ---- Navegación entre vistas ----
 function verVista(v){
-  const vistas = {citas:"vistaCitas", registro:"vistaRegistro", empleadas:"vistaEmpleadas"};
+  const vistas = {citas:"vistaCitas", agenda:"vistaAgenda", registro:"vistaRegistro", empleadas:"vistaEmpleadas"};
   Object.entries(vistas).forEach(([k,id])=> document.getElementById(id).classList.toggle("oculto", k!==v));
   document.querySelectorAll(".navbtn").forEach(b=>b.classList.toggle("activo", b.dataset.v===v));
   const sec = document.getElementById(vistas[v]);
   if(sec){ sec.classList.remove("anim"); void sec.offsetWidth; sec.classList.add("anim"); }  // re-dispara la animación
   if(v==="empleadas") recargarEmpleados();
   if(v==="registro") cargarRegistro();
+  if(v==="agenda") abrirAgenda();
 }
 
 // ---- Citas ----
@@ -654,6 +759,7 @@ function pintar(){
         <span class="badge b-${c.estado}">${ESTADO_LABEL[c.estado]||c.estado}</span>
         ${c.estado!=="completada"?`<button class="mini ok" title="Marcar completada" onclick="cambiarEstado('${c.id}','completada')">✓ Completar</button>`:""}
         ${c.estado!=="no_show"?`<button class="mini bad" title="La clienta no llegó" onclick="cambiarEstado('${c.id}','no_show')">No llegó</button>`:""}
+        <button class="mini" title="Reagendar (cambiar día/hora/empleada)" onclick="abrirReagendar('${c.id}')">Reagendar</button>
         <select onchange="cambiarEstado('${c.id}',this.value)">${optsEstado(c.estado)}</select>
       </div></td>
     </tr>`;
@@ -664,12 +770,207 @@ async function cargar(forzar){
     const data = await api("/citas");
     citas = Array.isArray(data) ? data : [];
     const h = JSON.stringify(citas) + filtro;
-    if(forzar || h !== huella){ huella = h; pintar(); }
+    if(forzar || h !== huella){
+      huella = h; pintar();
+      // Si la agenda está abierta, refrescarla también (salvo durante un arrastre)
+      if(!document.getElementById("vistaAgenda").classList.contains("oculto")) renderAgenda();
+    }
     const ahora = new Date().toLocaleTimeString("es-MX",{timeZone:TZ,hour:"numeric",minute:"2-digit",hour12:true});
     document.getElementById("vivoTxt").textContent = "En vivo · " + ahora;
   }catch(e){
     document.getElementById("vivoTxt").textContent = "Sin conexión…";
   }
+}
+
+// ════════════════════════════════════════════════════════════
+// Agenda: calendario por día con arrastrar-y-soltar para reagendar
+// ════════════════════════════════════════════════════════════
+const AG_INI = 8, AG_FIN = 21, AG_PX = 1.15, AG_SNAP = 15;   // 8am–9pm, 1.15px/min, ajuste a 15min
+const _fmtTZ = new Intl.DateTimeFormat("en-CA",{timeZone:TZ,year:"numeric",month:"2-digit",day:"2-digit",hour:"2-digit",minute:"2-digit",hour12:false});
+function partesTZ(iso){
+  const o = {};
+  _fmtTZ.formatToParts(new Date(iso)).forEach(p=>{ if(p.type!=="literal") o[p.type]=p.value; });
+  let h = parseInt(o.hour,10); if(h===24) h=0;   // medianoche puede venir como "24"
+  return { fecha:`${o.year}-${o.month}-${o.day}`, min:h*60+parseInt(o.minute,10) };
+}
+function minAHora(min){ const h=Math.floor(min/60), m=min%60; return String(h).padStart(2,"0")+":"+String(m).padStart(2,"0"); }
+function hm(s){ const [h,m]=s.split(":").map(Number); return h*60+(m||0); }
+function durCita(c){ return c.termina_en ? Math.max(15, Math.round((new Date(c.termina_en)-new Date(c.inicia_en))/60000)) : 60; }
+function hoyTZ(){ return new Date().toLocaleDateString("en-CA",{timeZone:TZ}); }
+
+async function abrirAgenda(){
+  const inp = document.getElementById("agendaFecha");
+  if(!inp.value) inp.value = hoyTZ();
+  // El admin necesita la lista de empleadas y sus turnos (para columnas y sombreado)
+  if(esAdmin){
+    if(!empleados.length){ try{ empleados = await api("/empleados"); }catch(e){} }
+    if(!agTurnos){ try{ const g = await api("/empleados/gestion"); agTurnos={}; g.forEach(e=>agTurnos[e.id]=e); }catch(e){ agTurnos={}; } }
+  }
+  renderAgenda();
+}
+function agendaDia(delta){
+  const inp = document.getElementById("agendaFecha");
+  const d = new Date((inp.value||hoyTZ())+"T12:00:00");
+  d.setDate(d.getDate()+delta);
+  inp.value = d.toLocaleDateString("en-CA");
+  renderAgenda();
+}
+function agendaHoy(){ document.getElementById("agendaFecha").value = hoyTZ(); renderAgenda(); }
+
+function renderAgenda(){
+  if(agArrastrando) return;   // no redibujar a media maniobra
+  const fecha = document.getElementById("agendaFecha").value || hoyTZ();
+  agendaFecha = fecha;
+  document.getElementById("agendaTitulo").textContent =
+    new Date(fecha+"T12:00:00").toLocaleDateString("es-MX",{weekday:"long",day:"numeric",month:"long"});
+
+  // Columnas: admin ve "Sin asignar" + cada empleada; la empleada solo su propia agenda
+  let cols;
+  if(esAdmin){
+    cols = [{id:"",nombre:"Sin asignar",sin:true}].concat(empleados.map(e=>({id:e.id,nombre:e.nombre})));
+  }else if(yo && yo.empleado_id){
+    cols = [{id:yo.empleado_id, nombre:yo.nombre || "Mi agenda"}];
+  }else{
+    cols = [];
+  }
+
+  const grid = document.getElementById("agendaGrid");
+  if(!cols.length){
+    grid.innerHTML = `<div class="ag-vacio">No hay empleadas para mostrar en la agenda.</div>`;
+    return;
+  }
+
+  const dow = (new Date(fecha+"T12:00:00").getDay()+6)%7;   // 0=Lunes
+  const delDia = citas.filter(c => c.estado!=="cancelada" && partesTZ(c.inicia_en).fecha===fecha);
+  const total = (AG_FIN-AG_INI)*60*AG_PX;
+
+  grid.innerHTML =
+    `<div class="ag-cab"><div class="ag-gutter-cab"></div>` +
+      cols.map(c=>`<div class="ag-col-cab${c.sin?' sin':''}" title="${esc(c.nombre)}">${esc(c.nombre)}</div>`).join("") +
+    `</div>` +
+    `<div class="ag-cuerpo">` +
+      `<div class="ag-gutter" style="height:${total}px">${agGutter()}</div>` +
+      cols.map(c=>agColumna(c, delDia, dow)).join("") +
+    `</div>`;
+  agEnlazarDrag();
+}
+function agGutter(){
+  let s = "";
+  for(let h=AG_INI; h<=AG_FIN; h++){
+    s += `<div class="ag-hl" style="top:${(h-AG_INI)*60*AG_PX}px">${ampm(String(h).padStart(2,"0")+":00")}</div>`;
+  }
+  return s;
+}
+function agColumna(col, delDia, dow){
+  const total = (AG_FIN-AG_INI)*60*AG_PX;
+  let lineas = "";
+  for(let h=AG_INI; h<=AG_FIN; h++) lineas += `<div class="ag-linea" style="top:${(h-AG_INI)*60*AG_PX}px"></div>`;
+
+  // Sombreado de horas fuera del turno de la empleada (solo si conocemos su horario)
+  let off = "";
+  if(!col.sin && agTurnos && agTurnos[col.id]){
+    const t = agTurnos[col.id];
+    if(t.dias && t.dias.includes(dow) && t.hora_inicio){
+      const hi = hm(t.hora_inicio), hf = hm(t.hora_fin);
+      if(hi > AG_INI*60) off += `<div class="ag-off" style="top:0;height:${(hi-AG_INI*60)*AG_PX}px"></div>`;
+      if(hf < AG_FIN*60) off += `<div class="ag-off" style="top:${(hf-AG_INI*60)*AG_PX}px;height:${(AG_FIN*60-hf)*AG_PX}px"></div>`;
+    }else{
+      off = `<div class="ag-off" style="top:0;height:${total}px"></div><div class="ag-descansa">Descansa</div>`;
+    }
+  }
+
+  const bloques = delDia.filter(c => (c.empleado_id||"") === col.id).map(agBloque).join("");
+  return `<div class="ag-col${col.sin?' sin':''}" data-emp="${esc(col.id)}" style="height:${total}px">${lineas}${off}${bloques}</div>`;
+}
+function agBloque(c){
+  const p = partesTZ(c.inicia_en), dur = durCita(c), total = (AG_FIN-AG_INI)*60*AG_PX;
+  let top = (p.min - AG_INI*60)*AG_PX, h = dur*AG_PX;
+  if(top < 0){ h += top; top = 0; }                 // recortar si empieza antes del rango visible
+  if(top + h > total) h = total - top;
+  const t = fmt(c.inicia_en);
+  return `<div class="ag-cita est-${c.estado}" draggable="true" data-id="${c.id}" data-dur="${dur}"
+      style="top:${top}px;height:${Math.max(h,20)}px" onclick="abrirReagendar('${c.id}')"
+      title="${esc(c.cliente)} · ${esc(c.servicio)} · ${t.h}">
+      <div class="ag-h">${t.h}</div><div class="ag-c">${esc(c.cliente)}</div><div class="ag-s">${esc(c.servicio)}</div></div>`;
+}
+
+// ---- Arrastrar y soltar ----
+function agEnlazarDrag(){
+  document.querySelectorAll("#agendaGrid .ag-cita").forEach(el=>{
+    el.addEventListener("dragstart", e=>{
+      agArrastrando = { id:el.dataset.id, dur:parseInt(el.dataset.dur,10)||60 };
+      el.classList.add("drag");
+      e.dataTransfer.effectAllowed = "move";
+      e.dataTransfer.setData("text/plain", el.dataset.id);
+    });
+    el.addEventListener("dragend", ()=>{ el.classList.remove("drag"); agArrastrando=null; agLimpiarGhost(); });
+  });
+  document.querySelectorAll("#agendaGrid .ag-col").forEach(col=>{
+    col.addEventListener("dragover", e=>{ if(!agArrastrando) return; e.preventDefault(); e.dataTransfer.dropEffect="move"; agGhost(col, e); });
+    col.addEventListener("dragleave", e=>{ if(e.target===col) agLimpiarGhost(); });
+    col.addEventListener("drop", e=>{ if(!agArrastrando) return; e.preventDefault(); agSoltar(col.dataset.emp, agMinDesdeY(col, e)); });
+  });
+}
+function agMinDesdeY(col, e){
+  const r = col.getBoundingClientRect();
+  const dur = agArrastrando ? agArrastrando.dur : 60;
+  let min = AG_INI*60 + Math.round(((e.clientY - r.top)/AG_PX)/AG_SNAP)*AG_SNAP;
+  return Math.max(AG_INI*60, Math.min(min, AG_FIN*60 - dur));
+}
+function agGhost(col, e){
+  agLimpiarGhost();
+  const min = agMinDesdeY(col, e), dur = agArrastrando ? agArrastrando.dur : 60;
+  const g = document.createElement("div");
+  g.className = "ag-ghost";
+  g.style.top = ((min - AG_INI*60)*AG_PX)+"px";
+  g.style.height = (dur*AG_PX)+"px";
+  g.textContent = ampm(minAHora(min));
+  col.appendChild(g);
+}
+function agLimpiarGhost(){ document.querySelectorAll("#agendaGrid .ag-ghost").forEach(g=>g.remove()); }
+async function agSoltar(empId, min){
+  const id = agArrastrando.id;
+  agLimpiarGhost();
+  const payload = { fecha:agendaFecha, hora:minAHora(min) };
+  if(esAdmin) payload.empleado_id = empId || "";   // el admin puede reasignar empleada al soltar
+  try{
+    await api(`/citas/${id}/mover`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(payload)});
+    toast("Cita reagendada");
+  }catch(e){ toast(e.message || "No se pudo mover","err"); }
+  await cargar(true); renderAgenda();
+}
+
+// ---- Modal reagendar (móvil + reactivar canceladas) ----
+function abrirReagendar(id){
+  const c = citas.find(x=>x.id===id);
+  if(!c) return;
+  reagId = id;
+  document.getElementById("reagSub").textContent = `${c.cliente} · ${c.servicio}`;
+  document.getElementById("reagCampoEmp").style.display = esAdmin ? "block" : "none";
+  if(esAdmin) document.getElementById("reagEmp").innerHTML = optsEmpleadas(c.empleado_id);
+  const p = partesTZ(c.inicia_en);
+  document.getElementById("reagFecha").value = p.fecha;
+  document.getElementById("reagHora").value = minAHora(p.min);
+  document.getElementById("reagEstado").innerHTML = optsEstado(c.estado);
+  document.getElementById("overlayReag").classList.add("open");
+}
+function cerrarReag(){ document.getElementById("overlayReag").classList.remove("open"); reagId=null; }
+async function guardarReag(){
+  if(!reagId) return;
+  const c = citas.find(x=>x.id===reagId);
+  const fecha = document.getElementById("reagFecha").value;
+  const hora = document.getElementById("reagHora").value;
+  const estado = document.getElementById("reagEstado").value;
+  if(!fecha || !hora){ toast("Indica día y hora","err"); return; }
+  try{
+    const payload = { fecha, hora };
+    if(esAdmin) payload.empleado_id = document.getElementById("reagEmp").value || "";
+    await api(`/citas/${reagId}/mover`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(payload)});
+    if(c && estado !== c.estado){
+      await api(`/citas/${reagId}/estado`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({estado})});
+    }
+    cerrarReag(); toast("Cita actualizada"); await cargar(true); renderAgenda();
+  }catch(e){ toast(e.message || "No se pudo guardar","err"); }
 }
 
 // ---- Empleadas ----
@@ -919,7 +1220,7 @@ async function guardarPass(){
 // ---- Inicio ----
 (async function init(){
   try{
-    const yo = await api("/yo");
+    yo = await api("/yo");
     esAdmin = yo.rol === "admin";
     document.getElementById("usrNombre").textContent = yo.nombre || "Usuaria";
     document.getElementById("usrRol").textContent = esAdmin ? "Administrador(a)" : "Empleada";
