@@ -22,11 +22,13 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-# Zona horaria del salón y parámetros del calendario de reservas
-ZONA_SALON = ZoneInfo("America/Mazatlan")
+# Zona horaria del salón y parámetros del calendario de reservas.
+# The Nail Society Spa está en Aguascalientes → America/Mexico_City.
+ZONA_SALON = ZoneInfo("America/Mexico_City")
 PASO_SLOT_MIN = 30  # cada cuántos minutos se ofrece un turno
-# Horario general del salón (respaldo cuando no se elige empleada). 0=Lunes..6=Domingo
-HORARIO_SALON = {0: (9, 19), 1: (9, 19), 2: (9, 19), 3: (9, 19), 4: (9, 19), 5: (9, 14), 6: None}
+# Horario general del salón (respaldo cuando no se elige empleada ni sucursal).
+# 0=Lunes..6=Domingo. Es un superset seguro; el cálculo real usa horarios_empleado.
+HORARIO_SALON = {0: (10, 20), 1: (10, 20), 2: (10, 20), 3: (10, 20), 4: (10, 20), 5: (10, 20), 6: None}
 
 # ════════════════════════════════════════════════════════════
 # Configuración de la base de datos
@@ -101,20 +103,34 @@ class Servicio(Base):
 
 
 class Empleado(Base):
-    """Empleada / manicurista del salón."""
+    """Especialista del salón (uñas, masajes/faciales, podología...)."""
     __tablename__ = "empleados"
 
     id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
     nombre: Mapped[str] = mapped_column(String(100))
     activo: Mapped[bool] = mapped_column(Boolean, default=True)
+    # En qué sucursal atiende y a qué se dedica.
+    sucursal_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("sucursales.id"), nullable=True)
+    especialidad: Mapped[str | None] = mapped_column(Text, nullable=True)
 
 
 class Categoria(Base):
-    """Categoría de servicios (Acrílico, Manicura, Pedicura, Diseño...)."""
+    """Categoría de servicios (Acrílico, Gel, Pedicure, Spa...)."""
     __tablename__ = "categorias"
 
     id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
     nombre: Mapped[str] = mapped_column(String(100), unique=True)
+
+
+class Sucursal(Base):
+    """Sucursal del salón. The Nail Society tiene dos: Norte y Sur."""
+    __tablename__ = "sucursales"
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
+    nombre: Mapped[str] = mapped_column(Text, unique=True)
+    direccion: Mapped[str | None] = mapped_column(Text, nullable=True)
+    telefono: Mapped[str | None] = mapped_column(Text, nullable=True)
+    activo: Mapped[bool] = mapped_column(Boolean, default=True)
 
 
 class HorarioEmpleado(Base):
@@ -150,6 +166,7 @@ class Cita(Base):
     cliente_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("clientes.id"))
     servicio_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("servicios.id"), nullable=True)
     empleado_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("empleados.id"), nullable=True)
+    sucursal_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("sucursales.id"), nullable=True)
     inicia_en: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     termina_en: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     estado: Mapped[str] = mapped_column(String(20), default="pendiente")
@@ -316,6 +333,7 @@ async def guardar_cita(
     termina_en: datetime | None = None,
     notas: str | None = None,
     empleado_id: uuid.UUID | None = None,
+    sucursal_id: uuid.UUID | None = None,
     origen: str = "whatsapp",
 ) -> dict:
     """Registra una cita y devuelve sus datos básicos.
@@ -331,6 +349,7 @@ async def guardar_cita(
             termina_en=termina_en,
             notas=notas,
             empleado_id=empleado_id,
+            sucursal_id=sucursal_id,
             origen=origen,
         )
         session.add(cita)
@@ -425,6 +444,54 @@ async def slots_disponibles(servicio_id: str, empleado_id: str | None, fecha: st
         return slots
 
 
+async def listar_sucursales() -> list[dict]:
+    """Sucursales activas del salón (para elegir Norte o Sur al agendar)."""
+    async with async_session() as session:
+        result = await session.execute(
+            select(Sucursal).where(Sucursal.activo.is_(True)).order_by(Sucursal.nombre)
+        )
+        return [
+            {"id": str(s.id), "nombre": s.nombre, "direccion": s.direccion, "telefono": s.telefono}
+            for s in result.scalars().all()
+        ]
+
+
+async def resolver_sucursal(nombre: str) -> dict | None:
+    """Busca una sucursal por nombre (tolerante: 'norte', 'Sur', etc.). None si no existe."""
+    objetivo = (nombre or "").strip().lower()
+    if not objetivo:
+        return None
+    for s in await listar_sucursales():
+        if objetivo in s["nombre"].lower() or s["nombre"].lower() in objetivo:
+            return s
+    return None
+
+
+async def slots_sucursal(servicio_id: str, sucursal_id: str, fecha: str) -> list[str]:
+    """
+    Huecos reales de una sucursal para una fecha: une la disponibilidad de TODAS
+    las especialistas activas de esa sucursal. Se ofrece un turno si al menos una
+    de ellas está libre en él. Ordenado y sin duplicados.
+    """
+    async with async_session() as session:
+        result = await session.execute(
+            select(Empleado.id).where(
+                Empleado.activo.is_(True),
+                Empleado.sucursal_id == uuid.UUID(sucursal_id),
+            )
+        )
+        empleadas = [str(eid) for (eid,) in result.all()]
+
+    if not empleadas:
+        return []
+
+    horas: set[str] = set()
+    for eid in empleadas:
+        for h in await slots_disponibles(servicio_id, eid, fecha):
+            horas.add(h)
+    return sorted(horas)
+
+
 # ════════════════════════════════════════════════════════════
 # Funciones para el panel de administración (dashboard)
 # ════════════════════════════════════════════════════════════
@@ -436,17 +503,18 @@ async def listar_citas(empleado_filtro: str | None = None) -> list[dict]:
     """
     async with async_session() as session:
         query = (
-            select(Cita, Cliente, Servicio.nombre, Empleado.nombre)
+            select(Cita, Cliente, Servicio.nombre, Empleado.nombre, Sucursal.nombre)
             .join(Cliente, Cita.cliente_id == Cliente.id)
             .outerjoin(Servicio, Cita.servicio_id == Servicio.id)
             .outerjoin(Empleado, Cita.empleado_id == Empleado.id)
+            .outerjoin(Sucursal, Cita.sucursal_id == Sucursal.id)
             .order_by(Cita.inicia_en.asc())
         )
         if empleado_filtro:
             query = query.where(Cita.empleado_id == uuid.UUID(empleado_filtro))
         result = await session.execute(query)
         citas = []
-        for cita, cliente, servicio_nombre, empleado_nombre in result.all():
+        for cita, cliente, servicio_nombre, empleado_nombre, sucursal_nombre in result.all():
             citas.append({
                 "id": str(cita.id),
                 "cliente": cliente.nombre or "Sin nombre",
@@ -457,17 +525,28 @@ async def listar_citas(empleado_filtro: str | None = None) -> list[dict]:
                 "estado": cita.estado,
                 "empleado_id": str(cita.empleado_id) if cita.empleado_id else None,
                 "empleado": empleado_nombre,
+                "sucursal_id": str(cita.sucursal_id) if cita.sucursal_id else None,
+                "sucursal": sucursal_nombre,
+                "origen": cita.origen or "whatsapp",
                 "notas": cita.notas,
             })
         return citas
 
 
 async def listar_empleados() -> list[dict]:
-    """Lista las empleadas activas del salón."""
+    """Lista las empleadas activas del salón, con su sucursal y especialidad."""
     async with async_session() as session:
         query = select(Empleado).where(Empleado.activo.is_(True)).order_by(Empleado.nombre)
         result = await session.execute(query)
-        return [{"id": str(e.id), "nombre": e.nombre} for e in result.scalars().all()]
+        return [
+            {
+                "id": str(e.id),
+                "nombre": e.nombre,
+                "sucursal_id": str(e.sucursal_id) if e.sucursal_id else None,
+                "especialidad": e.especialidad,
+            }
+            for e in result.scalars().all()
+        ]
 
 
 def _calcular_turno(hora_inicio: str, duracion_horas) -> tuple:
@@ -560,10 +639,12 @@ async def eliminar_empleado(empleado_id: str) -> bool:
         return True
 
 
-async def buscar_empleada_disponible(inicia_en: datetime, termina_en: datetime) -> dict:
+async def buscar_empleada_disponible(inicia_en: datetime, termina_en: datetime,
+                                     sucursal_id: uuid.UUID | None = None) -> dict:
     """
     Busca una empleada activa que trabaje en esa franja y no tenga una cita que
-    se solape. Devuelve:
+    se solape. Si se pasa `sucursal_id`, solo considera al personal de esa sucursal.
+    Devuelve:
       {"empleado_id": <id>}                 -> hay una libre (asignar)
       {"empleado_id": None, "hay_personal": True}  -> hay personal ese día pero todas ocupadas
       {"empleado_id": None, "hay_personal": False} -> no hay personal con horario ese día
@@ -572,11 +653,14 @@ async def buscar_empleada_disponible(inicia_en: datetime, termina_en: datetime) 
     ini_t = inicia_en.time()
     fin_t = termina_en.time()
     async with async_session() as session:
-        filas = (await session.execute(
+        consulta = (
             select(Empleado.id, HorarioEmpleado.hora_inicio, HorarioEmpleado.hora_fin)
             .join(HorarioEmpleado, HorarioEmpleado.empleado_id == Empleado.id)
             .where(Empleado.activo.is_(True), HorarioEmpleado.dia_semana == dow)
-        )).all()
+        )
+        if sucursal_id is not None:
+            consulta = consulta.where(Empleado.sucursal_id == sucursal_id)
+        filas = (await session.execute(consulta)).all()
         candidatas = [eid for (eid, hi, hf) in filas if hi <= ini_t and fin_t <= hf]
         if not candidatas:
             return {"empleado_id": None, "hay_personal": False}

@@ -1,4 +1,4 @@
-// static/marca.js — Efectos de marca de MD nails (aurora + brillo magnético)
+// static/marca.js — Efectos de marca de The Nail Society Spa (aurora + brillo magnético)
 // Externalizado desde branding.py para permitir una CSP estricta (sin scripts inline).
 ;(function(){
   var a=document.createElement("div");a.className="aurora";a.innerHTML='<b class="a"></b><b class="b"></b>';document.body.appendChild(a);

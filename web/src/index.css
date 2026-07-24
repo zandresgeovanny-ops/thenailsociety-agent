@@ -1,0 +1,125 @@
+/* The Nail Society Spa — sistema de diseño
+   Paleta: blanco hueso + dorado como base, negro estructural, naranja de acento.
+   Regla de contraste: el DORADO nunca es color de texto (no llega a 4.5:1);
+   vive en bordes, filetes, iconos y superficies. El naranja de texto va oscurecido. */
+
+:root {
+  /* Lienzo y superficies claras */
+  --hueso: #f7f4ee; /* blanco hueso, no blanco puro */
+  --blanco: #ffffff;
+  --crema: #f4efe6;
+
+  /* Negro estructural */
+  --negro: #141414;
+  --negro-hondo: #0b0b0b;
+  --carbon: #1e1c1a;
+
+  /* Dorado — SOLO filetes, bordes, iconos, superficies. Nunca texto. */
+  --oro: #c9a24d;
+  --oro-claro: #e8cf8f;
+  --oro-hondo: #a67c2e;
+  /* Dorado oscurecido (bronce): la ÚNICA variante de dorado apta como texto
+     sobre fondo claro — pasa contraste AA. Para etiquetas y detalles finos. */
+  --oro-texto: #7a5f22;
+
+  /* Naranja — acento de acción (CTA, estado activo, badges) */
+  --naranja: #e8782c;
+  --naranja-texto: #b8500f; /* versión oscurecida, apta como texto sobre claro */
+  --naranja-hondo: #c85a10;
+
+  /* Tinta / texto */
+  --tinta: #1a1a1a;
+  --tinta-suave: #4a4540;
+  --gris: #6b6560;
+  --gris-claro: #9a938c;
+
+  /* Líneas */
+  --linea: #e6ded1;
+  --linea-oscura: #2c2926;
+
+  /* Tipografía */
+  --serif: "Cormorant Garamond", "Playfair Display", Georgia, serif;
+  --sans: "Inter", system-ui, -apple-system, sans-serif;
+
+  /* Sombra y radios */
+  --sombra: 0 18px 50px rgba(20, 16, 10, 0.14);
+  --sombra-suave: 0 8px 24px rgba(20, 16, 10, 0.08);
+  --radio: 18px;
+  --radio-lg: 26px;
+
+  color-scheme: light;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+}
+
+body {
+  margin: 0;
+  font-family: var(--sans);
+  color: var(--tinta);
+  background: var(--hueso);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+  overflow-x: hidden;
+}
+
+h1,
+h2,
+h3 {
+  font-family: var(--serif);
+  font-weight: 600;
+  line-height: 1.05;
+  margin: 0;
+  letter-spacing: -0.01em;
+}
+
+p {
+  margin: 0;
+  line-height: 1.65;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+button {
+  font-family: inherit;
+  cursor: pointer;
+}
+
+img {
+  max-width: 100%;
+  display: block;
+}
+
+::selection {
+  background: var(--naranja);
+  color: #fff;
+}
+
+/* Contenedor centrado */
+.contenedor {
+  width: min(1180px, 92vw);
+  margin-inline: auto;
+}
+
+/* Etiqueta de sección (kicker) */
+.kicker {
+  font-size: 12px;
+  letter-spacing: 0.28em;
+  text-transform: uppercase;
+  font-weight: 600;
+  color: var(--naranja-texto);
+}

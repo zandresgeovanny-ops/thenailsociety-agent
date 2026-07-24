@@ -5,7 +5,7 @@
 Úsalo si la dueña (admin) olvidó su contraseña y no puede entrar.
 Requiere DATABASE_URL en .env apuntando a la base del salón.
 
-    python scripts/reset_password.py admin@mdnails.com NuevaClaveSegura123
+    python scripts/reset_password.py admin@thenailsociety.com NuevaClaveSegura123
 """
 
 import os

@@ -2,9 +2,9 @@
 # Generado por AgentKit
 
 """
-Herramientas específicas del negocio MDnails: búsqueda en la base de
-conocimiento (FAQ) y registro de solicitudes de citas, respetando el
-horario de atención del salón.
+Herramientas específicas de The Nail Society Spa: catálogo de servicios,
+consulta de disponibilidad real por sucursal y registro/gestión de citas,
+respetando el horario de atención del salón.
 """
 
 import os
@@ -20,14 +20,14 @@ from agent.memory import (
     guardar_cita, buscar_o_crear_cliente, listar_servicios,
     citas_activas_de, cancelar_cita as _mem_cancelar,
     reagendar_cita as _mem_reagendar, cambiar_servicio_cita as _mem_cambiar_servicio,
-    buscar_empleada_disponible,
+    buscar_empleada_disponible, listar_sucursales, resolver_sucursal, slots_sucursal,
 )
 
 logger = logging.getLogger("agentkit")
 
-# Zona horaria del salón (Culiacán). Las citas se interpretan en hora local
-# y se guardan como timestamp con zona horaria.
-ZONA_HORARIA = ZoneInfo("America/Mazatlan")
+# Zona horaria del salón (Aguascalientes). Las citas se interpretan en hora
+# local y se guardan como timestamp con zona horaria.
+ZONA_HORARIA = ZoneInfo("America/Mexico_City")
 
 
 def cargar_info_negocio() -> dict:
@@ -70,23 +70,25 @@ def buscar_en_knowledge(consulta: str) -> str:
 
 
 # ════════════════════════════════════════════════════════════
-# AGENDAR CITAS — Horario de atención de MDnails
+# AGENDAR CITAS — Horario de atención de The Nail Society Spa
 # 0=Lunes ... 5=Sábado, 6=Domingo (cerrado)
-# Cada valor es (hora_apertura, hora_cierre) en formato 24h
+# Cada valor es (hora_apertura, hora_cierre) en formato 24h.
+# Validación gruesa: la Sur cierra el sábado a las 18h, la Norte a las 20h;
+# el hueco real lo calcula slots_sucursal() contra horarios_empleado.
 # ════════════════════════════════════════════════════════════
 HORARIO_SEMANA = {
-    0: (9, 19),  # Lunes
-    1: (9, 19),  # Martes
-    2: (9, 19),  # Miércoles
-    3: (9, 19),  # Jueves
-    4: (9, 19),  # Viernes
-    5: (9, 14),  # Sábado
-    6: None,     # Domingo — cerrado
+    0: (10, 20),  # Lunes
+    1: (10, 20),  # Martes
+    2: (10, 20),  # Miércoles
+    3: (10, 20),  # Jueves
+    4: (10, 20),  # Viernes
+    5: (10, 20),  # Sábado
+    6: None,      # Domingo — cerrado
 }
 
 
 def verificar_disponibilidad(fecha: str, hora: str) -> dict:
-    """Verifica si una fecha/hora cae dentro del horario de atención de MDnails."""
+    """Verifica si una fecha/hora cae dentro del horario de atención del salón."""
     try:
         fecha_dt = datetime.strptime(fecha, "%Y-%m-%d")
         hora_dt = datetime.strptime(hora, "%H:%M")
@@ -99,7 +101,7 @@ def verificar_disponibilidad(fecha: str, hora: str) -> dict:
     horario_dia = HORARIO_SEMANA.get(fecha_dt.weekday())
 
     if horario_dia is None:
-        return {"disponible": False, "mensaje": "Los domingos MDnails está cerrado."}
+        return {"disponible": False, "mensaje": "Los domingos el salón está cerrado."}
 
     apertura, cierre = horario_dia
     hora_decimal = hora_dt.hour + hora_dt.minute / 60
@@ -113,11 +115,56 @@ def verificar_disponibilidad(fecha: str, hora: str) -> dict:
     }
 
 
-async def agendar_cita(telefono: str, nombre_cliente: str, servicio: str, fecha: str, hora: str) -> dict:
-    """Registra una solicitud de cita si la fecha/hora está dentro del horario de atención."""
+def _resolver_servicio(servicios: list[dict], texto: str) -> dict | None:
+    """Resuelve un servicio contra el catálogo. Prioridad: 1) match exacto,
+    2) el nombre más específico (más largo) que coincida, para no confundir
+    'Manicure' con 'Manicure de lujo'."""
+    objetivo = (texto or "").lower().strip()
+    exacto = next((s for s in servicios if s["nombre"].lower() == objetivo), None)
+    candidatos = [s for s in servicios if objetivo in s["nombre"].lower() or s["nombre"].lower() in objetivo]
+    return exacto or (max(candidatos, key=lambda s: len(s["nombre"])) if candidatos else None)
+
+
+async def consultar_disponibilidad(servicio: str, fecha: str, sucursal: str) -> dict:
+    """Devuelve los horarios REALES libres para un servicio en una sucursal y fecha.
+    Une la disponibilidad de todas las especialistas de esa sucursal."""
+    suc = await resolver_sucursal(sucursal)
+    if suc is None:
+        opciones = ", ".join(s["nombre"] for s in await listar_sucursales()) or "Norte, Sur"
+        return {"exito": False, "mensaje": f"No reconocí esa sucursal. Tenemos: {opciones}."}
+
+    base = verificar_disponibilidad(fecha, "10:00")
+    if not base["disponible"] and "Formato" in base["mensaje"]:
+        return {"exito": False, "mensaje": base["mensaje"]}
+
+    elegido = _resolver_servicio(await listar_servicios(), servicio)
+    if elegido is None:
+        return {"exito": False, "mensaje": "No reconocí ese servicio. ¿Me lo confirmas del catálogo?"}
+
+    horas = await slots_sucursal(elegido["id"], suc["id"], fecha)
+    if not horas:
+        return {
+            "exito": True, "horarios": [], "sucursal": suc["nombre"], "servicio": elegido["nombre"],
+            "mensaje": f"No hay horarios libres para {elegido['nombre']} el {fecha} en la sucursal {suc['nombre']}. ¿Probamos otro día?",
+        }
+    return {
+        "exito": True, "horarios": horas, "sucursal": suc["nombre"], "servicio": elegido["nombre"],
+        "mensaje": f"Horarios libres el {fecha} en {suc['nombre']} para {elegido['nombre']}: {', '.join(horas)}.",
+    }
+
+
+async def agendar_cita(telefono: str, nombre_cliente: str, servicio: str, fecha: str,
+                       hora: str, sucursal: str) -> dict:
+    """Registra una cita en la sucursal indicada si la fecha/hora está dentro del horario."""
     disponibilidad = verificar_disponibilidad(fecha, hora)
     if not disponibilidad["disponible"]:
         return {"exito": False, "mensaje": disponibilidad["mensaje"]}
+
+    # Resolver la sucursal (Norte / Sur). Es obligatoria: cada equipo es distinto.
+    suc = await resolver_sucursal(sucursal)
+    if suc is None:
+        opciones = ", ".join(s["nombre"] for s in await listar_sucursales()) or "Norte, Sur"
+        return {"exito": False, "mensaje": f"¿En qué sucursal? Tenemos: {opciones}."}
 
     # Construir el inicio de la cita en la zona horaria del salón
     try:
@@ -125,24 +172,17 @@ async def agendar_cita(telefono: str, nombre_cliente: str, servicio: str, fecha:
     except ValueError:
         return {"exito": False, "mensaje": "Formato de fecha u hora inválido. Usa YYYY-MM-DD y HH:MM."}
 
-    # Resolver el servicio contra el catálogo de la DB.
-    # Prioridad: 1) match exacto  2) el nombre más específico (más largo) que coincida,
-    # para no confundir "Manicura" con "Manicura con gel".
     servicio_id = None
     duracion = 60
-    objetivo = servicio.lower().strip()
-    servicios = await listar_servicios()
-    exacto = next((s for s in servicios if s["nombre"].lower() == objetivo), None)
-    candidatos = [s for s in servicios if objetivo in s["nombre"].lower() or s["nombre"].lower() in objetivo]
-    elegido = exacto or (max(candidatos, key=lambda s: len(s["nombre"])) if candidatos else None)
+    elegido = _resolver_servicio(await listar_servicios(), servicio)
     if elegido:
         servicio_id = uuid.UUID(elegido["id"])
         duracion = elegido["duracion_min"]
 
     termina_en = inicia_en + timedelta(minutes=duracion)
 
-    # Disponibilidad REAL: buscar una empleada libre en esa franja (o rechazar)
-    disp = await buscar_empleada_disponible(inicia_en, termina_en)
+    # Disponibilidad REAL: buscar una especialista libre en esa franja Y sucursal
+    disp = await buscar_empleada_disponible(inicia_en, termina_en, sucursal_id=uuid.UUID(suc["id"]))
     if disp["empleado_id"] is None and disp.get("hay_personal"):
         return {"exito": False, "mensaje": "Ese horario ya está ocupado. ¿Quieres que te ofrezca otro horario disponible ese día?"}
     empleado_asignado = uuid.UUID(disp["empleado_id"]) if disp["empleado_id"] else None
@@ -155,13 +195,14 @@ async def agendar_cita(telefono: str, nombre_cliente: str, servicio: str, fecha:
             inicia_en=inicia_en,
             termina_en=termina_en,
             empleado_id=empleado_asignado,
+            sucursal_id=uuid.UUID(suc["id"]),
             notas=f"Servicio solicitado por el cliente: {servicio}",
         )
     except IntegrityError:
         return {"exito": False, "mensaje": "Ese horario acaba de ocuparse. ¿Te ofrezco otro horario disponible?"}
     return {
         "exito": True,
-        "mensaje": f"Cita registrada para {nombre_cliente}: {servicio} el {fecha} a las {hora}. MDnails la confirmará pronto.",
+        "mensaje": f"Cita registrada para {nombre_cliente}: {servicio} el {fecha} a las {hora} en la sucursal {suc['nombre']}. The Nail Society Spa la confirmará pronto.",
     }
 
 
@@ -265,15 +306,20 @@ TOOLS_CLAUDE = [
     },
     {
         "name": "listar_servicios",
-        "description": "Devuelve el catálogo de servicios activos de MDnails (nombre, duración y precio). Úsala cuando el cliente pregunte qué servicios hay o cuánto duran/cuestan.",
+        "description": "Devuelve el catálogo de servicios activos de The Nail Society Spa (nombre, duración y precio). Úsala cuando la clienta pregunte qué servicios hay o cuánto duran/cuestan.",
         "input_schema": {
             "type": "object",
             "properties": {},
         },
     },
     {
+        "name": "listar_sucursales",
+        "description": "Devuelve las sucursales del salón (Norte y Sur) con su dirección. Úsala cuando pregunten por ubicaciones o para ayudar a elegir dónde agendar.",
+        "input_schema": {"type": "object", "properties": {}},
+    },
+    {
         "name": "buscar_en_knowledge",
-        "description": "Busca información específica del negocio (servicios, ubicación, redes sociales, políticas, etc.) en los archivos de conocimiento de MDnails.",
+        "description": "Busca información específica del negocio (servicios, ubicación, redes sociales, políticas, etc.) en los archivos de conocimiento de The Nail Society Spa.",
         "input_schema": {
             "type": "object",
             "properties": {
@@ -283,8 +329,21 @@ TOOLS_CLAUDE = [
         },
     },
     {
+        "name": "consultar_disponibilidad",
+        "description": "Devuelve los horarios REALES libres para un servicio, en una sucursal (Norte o Sur) y una fecha. Úsala cuando la clienta quiera saber a qué horas puede agendar. Preséntale los horarios y deja que elija uno antes de agendar.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "servicio": {"type": "string", "description": "Servicio deseado (ej. Manicure de lujo)"},
+                "fecha": {"type": "string", "description": "Fecha en formato YYYY-MM-DD"},
+                "sucursal": {"type": "string", "description": "Sucursal: Norte o Sur"},
+            },
+            "required": ["servicio", "fecha", "sucursal"],
+        },
+    },
+    {
         "name": "verificar_disponibilidad",
-        "description": "Verifica si una fecha y hora propuestas caen dentro del horario de atención de MDnails. Úsala antes de agendar una cita.",
+        "description": "Comprobación rápida de si una fecha y hora caen dentro del horario de atención. Para ofrecer horarios reales usa mejor consultar_disponibilidad.",
         "input_schema": {
             "type": "object",
             "properties": {
@@ -296,16 +355,17 @@ TOOLS_CLAUDE = [
     },
     {
         "name": "agendar_cita",
-        "description": "Registra una solicitud de cita para el cliente. Solo usar después de confirmar el servicio, fecha, hora y nombre del cliente, y de verificar la disponibilidad.",
+        "description": "Registra una cita para la clienta. Solo usar después de confirmar servicio, fecha, hora, nombre y SUCURSAL (Norte o Sur), y de comprobar la disponibilidad. Pregunta SIEMPRE la sucursal antes de agendar.",
         "input_schema": {
             "type": "object",
             "properties": {
                 "nombre_cliente": {"type": "string", "description": "Nombre de la clienta o cliente"},
-                "servicio": {"type": "string", "description": "Servicio solicitado (ej. Manicura con gel)"},
+                "servicio": {"type": "string", "description": "Servicio solicitado (ej. Manicure de lujo)"},
                 "fecha": {"type": "string", "description": "Fecha en formato YYYY-MM-DD"},
                 "hora": {"type": "string", "description": "Hora en formato HH:MM (24 horas)"},
+                "sucursal": {"type": "string", "description": "Sucursal: Norte o Sur"},
             },
-            "required": ["nombre_cliente", "servicio", "fecha", "hora"],
+            "required": ["nombre_cliente", "servicio", "fecha", "hora", "sucursal"],
         },
     },
 ]
@@ -316,8 +376,18 @@ async def ejecutar_herramienta(nombre: str, entrada: dict, telefono: str) -> dic
     if nombre == "listar_servicios":
         return {"servicios": await listar_servicios()}
 
+    if nombre == "listar_sucursales":
+        return {"sucursales": await listar_sucursales()}
+
     if nombre == "buscar_en_knowledge":
         return {"resultado": buscar_en_knowledge(entrada.get("consulta", ""))}
+
+    if nombre == "consultar_disponibilidad":
+        return await consultar_disponibilidad(
+            servicio=entrada.get("servicio", ""),
+            fecha=entrada.get("fecha", ""),
+            sucursal=entrada.get("sucursal", ""),
+        )
 
     if nombre == "verificar_disponibilidad":
         return verificar_disponibilidad(entrada.get("fecha", ""), entrada.get("hora", ""))
@@ -329,6 +399,7 @@ async def ejecutar_herramienta(nombre: str, entrada: dict, telefono: str) -> dic
             servicio=entrada.get("servicio", ""),
             fecha=entrada.get("fecha", ""),
             hora=entrada.get("hora", ""),
+            sucursal=entrada.get("sucursal", ""),
         )
 
     if nombre == "listar_mis_citas":

@@ -21,7 +21,27 @@
       "Grep",
       "Bash(python -m pip install -r requirements.txt)",
       "Bash(sed 's/\\\\\\(sk-ant-..........\\\\\\).*/\\\\1.../')",
-      "Bash(python -c ' *)"
+      "Bash(python -c ' *)",
+      "Bash(curl *)",
+      "PowerShell(python -c \"from agent.brain import construir_contexto_temporal; print\\(construir_contexto_temporal\\(\\)\\)\")",
+      "mcp__visualize__read_me",
+      "mcp__visualize__show_widget",
+      "mcp__03641c63-3e19-4806-97ea-0ae2b3266f63__list_organizations",
+      "mcp__03641c63-3e19-4806-97ea-0ae2b3266f63__list_projects",
+      "mcp__03641c63-3e19-4806-97ea-0ae2b3266f63__get_cost",
+      "mcp__03641c63-3e19-4806-97ea-0ae2b3266f63__confirm_cost",
+      "mcp__03641c63-3e19-4806-97ea-0ae2b3266f63__create_project",
+      "mcp__03641c63-3e19-4806-97ea-0ae2b3266f63__apply_migration",
+      "mcp__03641c63-3e19-4806-97ea-0ae2b3266f63__execute_sql",
+      "mcp__03641c63-3e19-4806-97ea-0ae2b3266f63__get_project_url",
+      "mcp__03641c63-3e19-4806-97ea-0ae2b3266f63__get_publishable_keys",
+      "mcp__03641c63-3e19-4806-97ea-0ae2b3266f63__get_advisors",
+      "Bash(DATABASE_URL=\"sqlite+aiosqlite:///./_smoke.db\" python -)",
+      "Bash(python -m pip install asyncpg -q)",
+      "Bash(python -)",
+      "Skill(cyber-neo)",
+      "Skill(cyber-neo:*)",
+      "Bash(python -m py_compile agent/seguridad.py agent/main.py agent/reservas.py)"
     ]
   }
 }

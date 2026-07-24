@@ -1,0 +1,47 @@
+.tarjeta-tilt {
+  position: relative;
+  border-radius: var(--radio-lg);
+  background: var(--blanco);
+  border: 1px solid var(--linea);
+  box-shadow: var(--sombra-suave);
+  transition:
+    transform 0.3s cubic-bezier(0.22, 1, 0.36, 1),
+    box-shadow 0.3s ease;
+  transform-style: preserve-3d;
+  overflow: hidden;
+}
+
+.tarjeta-tilt:hover {
+  box-shadow: var(--sombra);
+  border-color: var(--oro);
+}
+
+/* Spotlight dorado que sigue al cursor */
+.tarjeta-tilt__luz {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.3s ease;
+  background: radial-gradient(
+    260px circle at var(--mx, 50%) var(--my, 50%),
+    rgba(201, 162, 77, 0.18),
+    transparent 60%
+  );
+}
+.tarjeta-tilt:hover .tarjeta-tilt__luz {
+  opacity: 1;
+}
+
+.tarjeta-tilt__cuerpo {
+  position: relative;
+  z-index: 1;
+  height: 100%;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tarjeta-tilt {
+    transform: none !important;
+    transition: box-shadow 0.3s ease;
+  }
+}

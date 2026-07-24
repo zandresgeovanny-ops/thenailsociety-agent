@@ -1,0 +1,80 @@
+.navbar {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 50;
+  backdrop-filter: saturate(1.2) blur(12px);
+  background: rgba(247, 244, 238, 0.72);
+  border-bottom: 1px solid var(--linea);
+}
+
+.navbar__inner {
+  display: flex;
+  align-items: center;
+  gap: 24px;
+  height: 68px;
+}
+
+.navbar__marca {
+  display: flex;
+  flex-direction: column;
+  line-height: 1;
+  padding-right: 18px;
+  border-right: 1px solid var(--oro);
+}
+.navbar__nombre {
+  font-family: var(--serif);
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--tinta);
+}
+.navbar__spa {
+  font-size: 9px;
+  letter-spacing: 0.32em;
+  color: var(--gris);
+  margin-top: 3px;
+}
+
+.navbar__links {
+  display: flex;
+  gap: 26px;
+  margin-left: auto;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--tinta-suave);
+}
+.navbar__links a {
+  position: relative;
+  transition: color 0.2s ease;
+}
+.navbar__links a::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  bottom: -6px;
+  width: 0;
+  height: 2px;
+  background: var(--naranja);
+  transition: width 0.25s ease;
+}
+.navbar__links a:hover {
+  color: var(--tinta);
+}
+.navbar__links a:hover::after {
+  width: 100%;
+}
+
+.navbar__cta {
+  padding: 11px 22px !important;
+  font-size: 14px !important;
+}
+
+@media (max-width: 860px) {
+  .navbar__links {
+    display: none;
+  }
+  .navbar__inner {
+    gap: 12px;
+  }
+}

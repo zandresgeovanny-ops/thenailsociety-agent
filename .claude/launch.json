@@ -1,0 +1,34 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "agentkit",
+      "runtimeExecutable": "python",
+      "runtimeArgs": ["-m", "uvicorn", "agent.main:app", "--port", "8000"],
+      "port": 8000
+    },
+    {
+      "name": "bonnezza",
+      "runtimeExecutable": "cmd",
+      "runtimeArgs": ["/c", "npm", "run", "dev", "--prefix", "C:/Users/zandr/prototipo web"],
+      "port": 5173
+    },
+    {
+      "name": "web-tns",
+      "runtimeExecutable": "cmd",
+      "runtimeArgs": [
+        "/c",
+        "npm",
+        "run",
+        "dev",
+        "--prefix",
+        "C:/Users/zandr/whatsapp-agentkit/web",
+        "--",
+        "--port",
+        "5199",
+        "--strictPort"
+      ],
+      "port": 5199
+    }
+  ]
+}

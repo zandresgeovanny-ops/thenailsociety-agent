@@ -3,7 +3,7 @@
 #   python scripts/onboarding.py
 
 negocio:
-  nombre: "MD Nails"
+  nombre: "Mi Salón"
 
 # Servicios del salón (la categoría agrupa en el portal de reservas)
 servicios:
@@ -20,6 +20,6 @@ empleadas:
 
 # Usuario administrador (dueña/o del salón)
 admin:
-  nombre: "Andrea Medina (Dueña)"
-  email: "admin@mdnails.com"
+  nombre: "Nombre de la dueña"
+  email: "admin@misalon.com"
   password: "CAMBIA-esta-clave"

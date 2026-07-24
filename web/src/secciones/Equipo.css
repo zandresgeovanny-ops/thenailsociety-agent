@@ -1,0 +1,68 @@
+.equipo {
+  position: relative;
+  padding: 96px 0;
+  background: var(--crema);
+  color: var(--tinta);
+}
+
+.equipo__cabecera {
+  text-align: center;
+  margin-bottom: 44px;
+}
+.equipo__titulo {
+  font-size: clamp(30px, 5vw, 50px);
+  margin-top: 12px;
+  color: var(--tinta);
+}
+
+.equipo__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
+  gap: 20px;
+}
+
+.miembro {
+  background: var(--blanco) !important;
+  border-color: var(--linea) !important;
+}
+.miembro__cuerpo {
+  padding: 30px 22px;
+  text-align: center;
+}
+.miembro__avatar {
+  display: grid;
+  place-items: center;
+  width: 76px;
+  height: 76px;
+  margin: 0 auto 18px;
+  border-radius: 50%;
+  font-family: var(--serif);
+  font-size: 32px;
+  font-weight: 700;
+  color: var(--oro-hondo);
+  background: radial-gradient(circle at 32% 28%, #fbf6ea, #f1e6cf);
+  border: 2px solid var(--oro);
+}
+.miembro__nombre {
+  font-size: 22px;
+  color: var(--tinta);
+  margin: 0 0 6px;
+}
+.miembro__esp {
+  font-size: 13px;
+  color: var(--oro-texto);
+  text-transform: capitalize;
+}
+
+.miembro-skel {
+  height: 210px;
+  border-radius: var(--radio-lg);
+  background: linear-gradient(90deg, #efe8d8 25%, #f6f0e2 37%, #efe8d8 63%);
+  background-size: 400% 100%;
+  animation: brillo 1.5s infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .miembro-skel {
+    animation: none;
+  }
+}

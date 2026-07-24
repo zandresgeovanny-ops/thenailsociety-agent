@@ -3,8 +3,8 @@
 
 """
 Lógica de IA del agente. Lee el system prompt de prompts.yaml, le da acceso
-a las herramientas de MDnails (búsqueda en knowledge y agendado de citas)
-y genera respuestas usando la API de Anthropic Claude.
+a las herramientas de The Nail Society Spa (catálogo, disponibilidad real y
+agendado de citas) y genera respuestas usando la API de Anthropic Claude.
 """
 
 import os
@@ -28,9 +28,9 @@ client = AsyncAnthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
 # Límite de vueltas de uso de herramientas por mensaje (evita loops infinitos)
 MAX_ITERACIONES_TOOLS = 5
 
-# Zona horaria del negocio (Culiacán, Sinaloa). Se usa para que el agente
+# Zona horaria del negocio (Aguascalientes). Se usa para que el agente
 # sepa la fecha/hora real al interpretar "hoy", "mañana", "el viernes", etc.
-ZONA_HORARIA = ZoneInfo("America/Mazatlan")
+ZONA_HORARIA = ZoneInfo("America/Mexico_City")
 
 DIAS_SEMANA = ["lunes", "martes", "miércoles", "jueves", "viernes", "sábado", "domingo"]
 MESES = ["enero", "febrero", "marzo", "abril", "mayo", "junio", "julio",
@@ -49,7 +49,7 @@ def construir_contexto_temporal() -> str:
         "## Fecha y hora actual (referencia obligatoria)\n"
         f"Hoy es {dia}, {ahora.day} de {MESES[ahora.month - 1]} de {ahora.year}.\n"
         f"Fecha de hoy en formato ISO: {ahora.strftime('%Y-%m-%d')}.\n"
-        f"Hora local de Culiacán: {ahora.strftime('%H:%M')}.\n"
+        f"Hora local de Aguascalientes: {ahora.strftime('%H:%M')}.\n"
         "Usa SIEMPRE esta fecha como referencia para interpretar expresiones como "
         "\"hoy\", \"mañana\", \"pasado mañana\", \"el viernes\" o \"la próxima semana\". "
         "Al agendar una cita, calcula la fecha exacta en formato YYYY-MM-DD a partir de aquí. "

@@ -11,8 +11,11 @@ import uuid
 import logging
 from datetime import datetime, timedelta
 
+import asyncio
+import json
+
 from fastapi import APIRouter, Depends, HTTPException, Request
-from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi.responses import HTMLResponse, RedirectResponse, StreamingResponse
 from sqlalchemy.exc import IntegrityError
 
 from agent.memory import (
@@ -22,10 +25,11 @@ from agent.memory import (
     buscar_empleada_disponible, buscar_o_crear_cliente, guardar_cita, ZONA_SALON,
     crear_empleado_con_login, gestionar_servicios, guardar_servicio,
     set_servicio_activo, restablecer_password_empleada,
-    obtener_configuracion, guardar_configuracion,
+    obtener_configuracion, guardar_configuracion, listar_sucursales,
 )
 from agent.auth import usuario_actual, requiere_panel, hash_password
 from agent.branding import aplicar_marca
+from agent.eventos import suscribir
 
 logger = logging.getLogger("agentkit")
 
@@ -52,6 +56,35 @@ async def api_citas(user: dict = Depends(requiere_panel)):
     if user["rol"] == "empleada":
         return await listar_citas(empleado_filtro=user["empleado_id"])
     return await listar_citas()
+
+
+@router.get("/api/sucursales")
+async def api_sucursales(_: dict = Depends(requiere_panel)):
+    return await listar_sucursales()
+
+
+@router.get("/api/eventos")
+async def api_eventos(request: Request, user: dict = Depends(requiere_panel)):
+    """Flujo SSE de cambios de citas en tiempo real (alimenta el "En vivo" del panel).
+
+    El navegador abre un EventSource a este endpoint; cada vez que una cita cambia
+    en Postgres (bot, web o panel), el trigger NOTIFY llega aquí y se reenvía como
+    un evento SSE. Si no hay Postgres/listener, solo se emiten latidos (ping) y el
+    panel sigue con su sondeo de respaldo.
+    """
+    async def flujo():
+        # Aviso inicial para que el cliente marque "conectado".
+        yield "event: listo\ndata: {}\n\n"
+        async for evento in suscribir():
+            if await request.is_disconnected():
+                break
+            yield f"data: {json.dumps(evento)}\n\n"
+
+    return StreamingResponse(
+        flujo(),
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no", "Connection": "keep-alive"},
+    )
 
 
 @router.get("/api/empleados")
@@ -337,36 +370,43 @@ _PAGINA_HTML = """<!DOCTYPE html>
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>MDnails · Panel</title>
+<title>The Nail Society Spa · Panel</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Playfair+Display:wght@600;700&display=swap" rel="stylesheet">
 <style>
   :root{
-    --rosa:#e8308f; --rosa-2:#c41f73; --rosa-suave:#2a1830; --rosa-borde:#4a2f44;
-    --tinta:#f1ebf5; --gris:#9d92aa; --bg:#141019; --panel:#221c2b; --linea:#352c40;
-    --ok:#2ecb8f; --warn:#e0a52a; --bad:#ef6b6b; --info:#5b9bf0;
-    --sombra:0 10px 30px rgba(0,0,0,.45);
+    /* Marca The Nail Society: BLANCO y DORADO predominan; el negro va solo en el
+       texto y el naranja solo en el botón de acción principal (toques mínimos).
+       El dorado, para que sirva como texto sobre blanco, se usa oscuro (bronce). */
+    --oro:#c9a24d; --oro-claro:#e8cf8f; --oro-hondo:#a67c2e;
+    --naranja:#e8782c; --naranja-2:#c85a10;
+    /* Aliases: el panel se construyó con --rosa*; en tema claro son superficie clara
+       y acento en oro oscuro (legible sobre blanco). */
+    --rosa:#8a6a2e; --rosa-2:#7a5f22; --rosa-suave:#f7f0df; --rosa-borde:#e2d2a3;
+    --tinta:#221d15; --gris:#71685a; --bg:#faf6ee; --panel:#ffffff; --linea:#ece2cd;
+    --ok:#1f9d6b; --warn:#c98a12; --bad:#d84a4a; --info:#3f7fd6;
+    --sombra:0 8px 24px rgba(120,95,40,.10);
   }
   *{box-sizing:border-box}
   html,body{margin:0}
   body{
     font-family:'Inter',system-ui,sans-serif; color:var(--tinta);
     background:
-      radial-gradient(1200px 600px at 100% -10%, rgba(232,48,143,.16) 0%, transparent 55%),
-      radial-gradient(900px 500px at -10% 0%, rgba(150,48,160,.14) 0%, transparent 50%),
+      radial-gradient(1200px 600px at 100% -10%, rgba(201,162,77,.15) 0%, transparent 55%),
+      radial-gradient(900px 500px at -10% 0%, rgba(232,120,44,.10) 0%, transparent 50%),
       var(--bg);
     min-height:100vh;
   }
   header{
     position:sticky; top:0; z-index:20; backdrop-filter:saturate(1.2) blur(8px);
-    background:rgba(28,22,36,.82); border-bottom:1px solid var(--linea);
+    background:rgba(255,255,255,.85); border-bottom:1px solid var(--linea);
     padding:14px 28px; display:flex; align-items:center; gap:14px; flex-wrap:wrap;
   }
   .marca{display:flex; align-items:center; gap:12px}
   .logo{
     width:46px; height:46px; border-radius:50%;
-    box-shadow:0 0 0 1px var(--linea), 0 6px 16px rgba(232,48,143,.3); animation:pop .5s ease both;
+    box-shadow:0 0 0 1px var(--linea), 0 6px 16px rgba(201,162,77,.3); animation:pop .5s ease both;
   }
   .marca h1{font-family:'Playfair Display',serif; font-size:20px; margin:0; line-height:1}
   .marca span{font-size:12px; color:var(--gris)}
@@ -382,7 +422,7 @@ _PAGINA_HTML = """<!DOCTYPE html>
   .nav{display:flex; align-items:center; gap:8px; margin-bottom:22px; flex-wrap:wrap}
   .navbtn{background:var(--panel); border:1px solid var(--linea); padding:9px 16px; border-radius:11px; cursor:pointer; font-weight:600; font-size:14px; color:var(--gris); font-family:inherit; box-shadow:var(--sombra); transition:.15s}
   .navbtn:hover{color:var(--rosa)}
-  .navbtn.activo{background:linear-gradient(135deg,var(--rosa),var(--rosa-2)); color:#fff; border-color:transparent}
+  .navbtn.activo{background:linear-gradient(135deg,var(--oro-claro),var(--oro)); color:#3a2f14; border-color:transparent; box-shadow:0 4px 12px rgba(201,162,77,.3)}
   .navlink{margin-left:auto; color:var(--rosa-2); font-weight:600; font-size:13px; text-decoration:none; border:1px dashed var(--rosa-borde); padding:8px 14px; border-radius:11px; transition:.15s}
   .navlink:hover{background:var(--rosa-suave)}
   .stats{display:grid; grid-template-columns:repeat(4,1fr); gap:16px; margin-bottom:24px}
@@ -393,8 +433,8 @@ _PAGINA_HTML = """<!DOCTYPE html>
   .stat.conf .n{color:var(--ok)} .stat.tot .n{color:var(--info)}
   .barra{display:flex; align-items:center; gap:10px; margin-bottom:16px; flex-wrap:wrap}
   .vtitulo{font-family:'Playfair Display',serif; font-size:20px; margin:0}
-  .busqueda{margin-left:auto; padding:9px 14px; border:1px solid var(--linea); border-radius:11px; font-family:inherit; font-size:13.5px; min-width:min(280px,60vw); transition:border-color .15s; background:#1b1622; color:var(--tinta)}
-  .busqueda::placeholder{color:#6f6580}
+  .busqueda{margin-left:auto; padding:9px 14px; border:1px solid var(--linea); border-radius:11px; font-family:inherit; font-size:13.5px; min-width:min(280px,60vw); transition:border-color .15s; background:#fbf8f1; color:var(--tinta)}
+  .busqueda::placeholder{color:#b0a691}
   .busqueda:focus{outline:none; border-color:var(--rosa)}
   .resumen-reg{display:flex; gap:14px; margin-bottom:16px; flex-wrap:wrap}
   .resumen-reg .pill{background:var(--rosa-suave); color:var(--rosa); border-radius:13px; padding:10px 18px; font-size:13.5px; font-weight:600; box-shadow:var(--sombra)}
@@ -406,17 +446,17 @@ _PAGINA_HTML = """<!DOCTYPE html>
   .chips{display:inline-flex; background:var(--panel); border:1px solid var(--linea); border-radius:12px; padding:4px; gap:2px; box-shadow:var(--sombra)}
   .chip{border:none; background:transparent; padding:8px 16px; border-radius:9px; cursor:pointer; color:var(--gris); font-weight:600; font-size:13.5px; transition:.18s}
   .chip:hover{color:var(--rosa)}
-  .chip.activo{background:linear-gradient(135deg,var(--rosa),var(--rosa-2)); color:#fff; box-shadow:0 4px 12px rgba(184,50,103,.3)}
+  .chip.activo{background:linear-gradient(135deg,var(--oro-claro),var(--oro)); color:#3a2f14; box-shadow:0 4px 12px rgba(201,162,77,.3)}
   .btn{border:none; border-radius:11px; padding:9px 16px; cursor:pointer; font-weight:600; font-size:13.5px; transition:.18s; font-family:inherit}
-  .btn.primary{background:linear-gradient(135deg,var(--rosa),var(--rosa-2)); color:#fff; box-shadow:0 4px 12px rgba(184,50,103,.3); margin-left:auto}
-  .btn.primary:hover{transform:translateY(-1px); box-shadow:0 8px 18px rgba(184,50,103,.4)}
-  .btn.ghost{background:#2a2433; color:var(--tinta)}
+  .btn.primary{background:linear-gradient(135deg,var(--naranja),var(--naranja-2)); color:#fff; box-shadow:0 4px 12px rgba(200,90,16,.35); margin-left:auto}
+  .btn.primary:hover{transform:translateY(-1px); box-shadow:0 8px 18px rgba(200,90,16,.45)}
+  .btn.ghost{background:#f0e9d8; color:var(--tinta)}
   .tarjeta{background:var(--panel); border:1px solid var(--linea); border-radius:20px; box-shadow:var(--sombra); overflow:hidden}
   table{width:100%; border-collapse:collapse}
   th,td{text-align:left; padding:15px 18px; font-size:14px; vertical-align:middle}
   thead th{background:var(--rosa-suave); color:var(--rosa); font-size:11.5px; text-transform:uppercase; letter-spacing:.06em; font-weight:700}
   tbody tr{border-top:1px solid var(--linea); animation:rise .4s ease both}
-  tbody tr:hover{background:#2a2336}
+  tbody tr:hover{background:#faf4e6}
   .hora-h{font-weight:700; font-size:15px}
   .hora-d{font-size:12px; color:var(--gris)}
   .hora-d::first-letter{text-transform:uppercase}
@@ -428,10 +468,19 @@ _PAGINA_HTML = """<!DOCTYPE html>
   .b-cancelada{background:#fbdada; color:#a32222}
   .b-completada{background:#dbe8ff; color:#23509e}
   .b-no_show{background:#ece8f4; color:#5b4a8a}
-  select{font-family:inherit; font-size:13px; border:1px solid var(--linea); border-radius:9px; padding:7px 9px; background:#1b1622; color:var(--tinta); cursor:pointer; transition:.15s}
+  /* Badge de origen de la cita (web / whatsapp / panel) */
+  .orig{display:inline-block; margin-left:6px; padding:2px 8px; border-radius:999px; font-size:10.5px; font-weight:700; letter-spacing:.03em; vertical-align:middle; border:1px solid transparent}
+  .o-web{background:rgba(232,120,44,.12); color:#b64f0e; border-color:rgba(232,120,44,.4)}
+  .o-wa{background:rgba(31,157,107,.12); color:#137a52; border-color:rgba(31,157,107,.4)}
+  .o-panel{background:rgba(201,162,77,.16); color:var(--rosa-2); border-color:rgba(201,162,77,.5)}
+  .o-otro{background:#f0ece2; color:var(--gris); border-color:var(--linea)}
+  /* Selector de sucursal en la barra de citas */
+  .sel-suc{border-color:var(--rosa-borde); background:var(--rosa-suave); color:var(--rosa-2); font-weight:600}
+  .sel-suc:hover{border-color:var(--oro)}
+  select{font-family:inherit; font-size:13px; border:1px solid var(--linea); border-radius:9px; padding:7px 9px; background:#fbf8f1; color:var(--tinta); cursor:pointer; transition:.15s}
   select:hover{border-color:var(--rosa)}
   .estado-cell{display:flex; align-items:center; gap:10px; flex-wrap:wrap}
-  .mini{border:1px solid var(--linea); background:#1b1622; border-radius:9px; padding:6px 11px; cursor:pointer; font-size:12.5px; font-weight:600; color:var(--tinta); font-family:inherit; transition:.15s}
+  .mini{border:1px solid var(--linea); background:#fbf8f1; border-radius:9px; padding:6px 11px; cursor:pointer; font-size:12.5px; font-weight:600; color:var(--tinta); font-family:inherit; transition:.15s}
   .mini:hover{border-color:var(--rosa)}
   .mini.bad{color:var(--bad); border-color:#f3c7c7}
   .mini.ok{color:var(--ok); border-color:#bfe6d3}
@@ -440,24 +489,24 @@ _PAGINA_HTML = """<!DOCTYPE html>
   .vacio .ico{font-size:46px; opacity:.6}
   .vacio p{margin:12px 0 0; font-size:15px}
   .vacio a{color:var(--rosa); cursor:pointer; font-weight:600; text-decoration:underline}
-  .skel{height:14px; border-radius:6px; background:linear-gradient(90deg,#241f2e 25%,#2e2738 37%,#241f2e 63%); background-size:400% 100%; animation:shimmer 1.4s infinite}
-  .overlay{position:fixed; inset:0; background:rgba(42,34,48,.45); backdrop-filter:blur(2px); display:none; place-items:center; z-index:50; animation:fade .2s ease}
+  .skel{height:14px; border-radius:6px; background:linear-gradient(90deg,#efe8d8 25%,#f6f0e2 37%,#efe8d8 63%); background-size:400% 100%; animation:shimmer 1.4s infinite}
+  .overlay{position:fixed; inset:0; background:rgba(60,48,24,.35); backdrop-filter:blur(2px); display:none; place-items:center; z-index:50; animation:fade .2s ease}
   .overlay.open{display:grid}
-  .modal{background:var(--panel); border:1px solid var(--linea); border-radius:20px; padding:26px; width:min(420px,92vw); box-shadow:0 24px 60px rgba(0,0,0,.55); animation:rise .25s ease}
+  .modal{background:var(--panel); border:1px solid var(--linea); border-radius:20px; padding:26px; width:min(420px,92vw); box-shadow:0 24px 60px rgba(90,70,30,.22); animation:rise .25s ease}
   .modal h3{font-family:'Playfair Display',serif; margin:0 0 4px}
   .modal p{margin:0 0 16px; color:var(--gris); font-size:13.5px}
   .modal label{font-size:13px; font-weight:600; color:var(--gris); display:block; margin:0 0 6px}
-  .modal input[type=text], .modal input[type=time], .modal input[type=password]{width:100%; padding:11px 13px; border:1px solid var(--linea); border-radius:11px; font-family:inherit; font-size:14px; margin-bottom:14px; background:#1b1622; color:var(--tinta)}
-  .modal input::placeholder{color:#6f6580}
+  .modal input[type=text], .modal input[type=time], .modal input[type=password]{width:100%; padding:11px 13px; border:1px solid var(--linea); border-radius:11px; font-family:inherit; font-size:14px; margin-bottom:14px; background:#fbf8f1; color:var(--tinta)}
+  .modal input::placeholder{color:#b0a691}
   .modal input:focus{outline:none; border-color:var(--rosa)}
   .modal input[type=range]{width:100%; margin-bottom:16px}
-  .modal input[type=date]{width:100%; padding:11px 13px; border:1px solid var(--linea); border-radius:11px; font-family:inherit; font-size:14px; margin-bottom:14px; background:#1b1622; color:var(--tinta)}
-  .modal select.sel-full{width:100%; padding:11px 13px; border:1px solid var(--linea); border-radius:11px; font-family:inherit; font-size:14px; margin-bottom:14px; background:#1b1622; color:var(--tinta)}
+  .modal input[type=date]{width:100%; padding:11px 13px; border:1px solid var(--linea); border-radius:11px; font-family:inherit; font-size:14px; margin-bottom:14px; background:#fbf8f1; color:var(--tinta)}
+  .modal select.sel-full{width:100%; padding:11px 13px; border:1px solid var(--linea); border-radius:11px; font-family:inherit; font-size:14px; margin-bottom:14px; background:#fbf8f1; color:var(--tinta)}
   .dias{display:flex; gap:6px; flex-wrap:wrap; margin-bottom:16px}
   .diachk{display:flex; align-items:center; gap:5px; font-size:13px; border:1px solid var(--linea); padding:6px 10px; border-radius:9px; cursor:pointer}
   .fila{display:flex; gap:10px; justify-content:flex-end}
   #toasts{position:fixed; bottom:22px; right:22px; z-index:60; display:flex; flex-direction:column; gap:10px}
-  .toast{background:#2a2433; color:#fff; border:1px solid var(--linea); padding:12px 18px; border-radius:12px; font-size:13.5px; box-shadow:0 10px 30px rgba(0,0,0,.45); animation:slideIn .3s ease}
+  .toast{background:#2a241c; color:#fff; border:1px solid #3a3324; padding:12px 18px; border-radius:12px; font-size:13.5px; box-shadow:0 10px 30px rgba(90,70,30,.28); animation:slideIn .3s ease}
   .toast.ok{background:#1f9d6b} .toast.err{background:#d84a4a}
   @keyframes pulse{0%{box-shadow:0 0 0 0 rgba(31,157,107,.5)}70%{box-shadow:0 0 0 9px rgba(31,157,107,0)}100%{box-shadow:0 0 0 0 rgba(31,157,107,0)}}
   @keyframes rise{from{opacity:0; transform:translateY(10px)}to{opacity:1; transform:none}}
@@ -469,9 +518,9 @@ _PAGINA_HTML = """<!DOCTYPE html>
   /* Flujo de animaciones e interacción */
   .anim{animation:fadeUp .4s cubic-bezier(.2,.7,.3,1) both}
   .stat{transition:transform .2s ease, box-shadow .2s ease}
-  .stat:hover{transform:translateY(-3px); box-shadow:0 12px 30px rgba(120,40,80,.14)}
+  .stat:hover{transform:translateY(-3px); box-shadow:0 12px 30px rgba(160,130,60,.18)}
   .tarjeta{transition:box-shadow .25s ease}
-  .tarjeta:hover{box-shadow:0 10px 32px rgba(120,40,80,.12)}
+  .tarjeta:hover{box-shadow:0 10px 32px rgba(160,130,60,.15)}
   .mini{transition:transform .12s ease, border-color .15s ease, color .15s ease}
   .mini:active{transform:scale(.93)}
   .btn:active{transform:scale(.97)}
@@ -488,7 +537,7 @@ _PAGINA_HTML = """<!DOCTYPE html>
   .ag-wrap{padding:0}
   .ag-scroll{overflow:auto; max-height:74vh}
   .ag-grid{min-width:max-content}
-  .ag-cab{display:flex; position:sticky; top:0; z-index:6; background:rgba(34,28,43,.96); backdrop-filter:blur(6px); border-bottom:1px solid var(--linea)}
+  .ag-cab{display:flex; position:sticky; top:0; z-index:6; background:rgba(255,255,255,.94); backdrop-filter:blur(6px); border-bottom:1px solid var(--linea)}
   .ag-gutter-cab{width:56px; flex:none}
   .ag-col-cab{flex:1; min-width:150px; padding:12px 10px; text-align:center; font-weight:700; font-size:13.5px; border-left:1px solid var(--linea); white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
   .ag-col-cab.sin{color:var(--gris); font-weight:600}
@@ -496,12 +545,12 @@ _PAGINA_HTML = """<!DOCTYPE html>
   .ag-gutter{width:56px; flex:none; position:relative}
   .ag-hl{position:absolute; right:8px; transform:translateY(-50%); font-size:11px; color:var(--gris); white-space:nowrap}
   .ag-col{flex:1; min-width:150px; position:relative; border-left:1px solid var(--linea)}
-  .ag-col.sin{background:rgba(255,255,255,.012)}
+  .ag-col.sin{background:rgba(201,162,77,.05)}
   .ag-linea{position:absolute; left:0; right:0; border-top:1px solid var(--linea); opacity:.5}
-  .ag-off{position:absolute; left:0; right:0; background:repeating-linear-gradient(45deg,rgba(0,0,0,.16),rgba(0,0,0,.16) 6px,transparent 6px,transparent 12px); pointer-events:none}
+  .ag-off{position:absolute; left:0; right:0; background:repeating-linear-gradient(45deg,rgba(160,140,90,.10),rgba(160,140,90,.10) 6px,transparent 6px,transparent 12px); pointer-events:none}
   .ag-descansa{position:absolute; top:50%; left:0; right:0; transform:translateY(-50%); text-align:center; color:var(--gris); font-size:12px; letter-spacing:.04em; pointer-events:none}
-  .ag-cita{position:absolute; left:4px; right:4px; border-radius:9px; padding:5px 8px; overflow:hidden; cursor:grab; box-shadow:0 3px 10px rgba(0,0,0,.3); border-left:4px solid var(--rosa); background:var(--rosa-suave); color:var(--tinta); transition:transform .1s ease, box-shadow .15s ease; z-index:2}
-  .ag-cita:hover{box-shadow:0 6px 18px rgba(0,0,0,.4); transform:translateY(-1px); z-index:4}
+  .ag-cita{position:absolute; left:4px; right:4px; border-radius:9px; padding:5px 8px; overflow:hidden; cursor:grab; box-shadow:0 3px 10px rgba(120,95,40,.16); border-left:4px solid var(--rosa); background:var(--rosa-suave); color:var(--tinta); transition:transform .1s ease, box-shadow .15s ease; z-index:2}
+  .ag-cita:hover{box-shadow:0 6px 18px rgba(120,95,40,.24); transform:translateY(-1px); z-index:4}
   .ag-cita:active{cursor:grabbing}
   .ag-cita.drag{opacity:.4}
   .ag-cita .ag-h{font-size:11px; font-weight:700; opacity:.9}
@@ -511,14 +560,14 @@ _PAGINA_HTML = """<!DOCTYPE html>
   .ag-cita.est-confirmada{border-left-color:var(--ok)}
   .ag-cita.est-completada{border-left-color:var(--info); opacity:.62}
   .ag-cita.est-no_show{border-left-color:var(--bad)}
-  .ag-ghost{position:absolute; left:4px; right:4px; border-radius:9px; background:rgba(232,48,143,.22); border:2px dashed var(--rosa); color:var(--rosa); font-size:11px; font-weight:700; display:flex; align-items:flex-start; justify-content:center; padding-top:3px; pointer-events:none; z-index:5}
+  .ag-ghost{position:absolute; left:4px; right:4px; border-radius:9px; background:rgba(201,162,77,.20); border:2px dashed var(--rosa); color:var(--rosa); font-size:11px; font-weight:700; display:flex; align-items:flex-start; justify-content:center; padding-top:3px; pointer-events:none; z-index:5}
   .ag-vacio{padding:46px 20px; text-align:center; color:var(--gris)}
   /* ===== Configuración del bot ===== */
   .cfg-lbl{display:block; font-weight:700; font-size:14px; margin:4px 0 4px}
   .cfg-ayuda{color:var(--gris); font-size:12.5px; margin:0 0 8px}
-  .cfg-area,.cfg-input{width:100%; padding:11px 13px; border:1px solid var(--linea); border-radius:12px; font-family:inherit; font-size:14px; background:#1b1622; color:var(--tinta); margin-bottom:16px; resize:vertical}
+  .cfg-area,.cfg-input{width:100%; padding:11px 13px; border:1px solid var(--linea); border-radius:12px; font-family:inherit; font-size:14px; background:#fbf8f1; color:var(--tinta); margin-bottom:16px; resize:vertical}
   .cfg-area:focus,.cfg-input:focus{outline:none; border-color:var(--rosa)}
-  .cfg-area::placeholder,.cfg-input::placeholder{color:#6f6580}
+  .cfg-area::placeholder,.cfg-input::placeholder{color:#b0a691}
   .cfg-grid{display:grid; grid-template-columns:1fr 1fr; gap:16px}
   @media(max-width:760px){.stats{grid-template-columns:repeat(2,1fr)} .ag-hint{display:none} .ag-titulo{font-size:15px} .cfg-grid{grid-template-columns:1fr}}
 </style>
@@ -526,8 +575,8 @@ _PAGINA_HTML = """<!DOCTYPE html>
 <body>
 <header>
   <div class="marca">
-    <img class="logo" src="__LOGO__" alt="MD nails">
-    <div><h1>MD nails</h1><span>Panel de administración</span></div>
+    <img class="logo" src="__LOGO__" alt="The Nail Society Spa">
+    <div><h1>The Nail Society Spa</h1><span>Panel de administración</span></div>
   </div>
   <div class="vivo"><span class="dot"></span><span id="vivoTxt">conectando…</span></div>
   <div class="usr"><span><b id="usrNombre">…</b><div class="rol" id="usrRol"></div></span><a class="salir" style="cursor:pointer" onclick="abrirPass()">Contraseña</a><a class="salir" href="/logout">Salir</a></div>
@@ -561,6 +610,7 @@ _PAGINA_HTML = """<!DOCTYPE html>
         <button class="chip" data-f="completadas" onclick="setFiltro('completadas')">Completadas</button>
         <button class="chip" data-f="todas" onclick="setFiltro('todas')">Todas</button>
       </div>
+      <select id="filtroSucursal" class="sel-suc oculto" onchange="setSucursal(this.value)" title="Filtrar por sucursal"></select>
       <button class="btn primary oculto" id="btnNuevaCita" onclick="abrirModalCita()">+ Nueva cita</button>
     </div>
     <div class="tarjeta">
@@ -690,7 +740,7 @@ _PAGINA_HTML = """<!DOCTYPE html>
     </div>
     <div id="campoLogin">
       <label>Correo (con esto inicia sesión)</label>
-      <input type="text" id="inpEmpCorreo" placeholder="ej. jessica@mdnails.com">
+      <input type="text" id="inpEmpCorreo" placeholder="ej. jessica@thenailsociety.com">
       <label>Contraseña (mínimo 8 caracteres)</label>
       <input type="password" id="inpEmpPass" placeholder="••••••••">
     </div>
@@ -808,12 +858,15 @@ _PAGINA_HTML = """<!DOCTYPE html>
 
 <script>
 const API = "/panel/api";
-const TZ  = "America/Mazatlan";
+const TZ  = "America/Mexico_City";
 const ESTADOS = ["pendiente","confirmada","completada","cancelada","no_show"];
 const ESTADO_LABEL = {pendiente:"pendiente", confirmada:"confirmada", completada:"completada", cancelada:"cancelada", no_show:"no llegó"};
 const DIAS_ABREV = ["Lun","Mar","Mié","Jue","Vie","Sáb","Dom"];
 const MESES_AB = ["ene","feb","mar","abr","may","jun","jul","ago","sep","oct","nov","dic"];
-let filtro = "proximas", empleados = [], empleadosGestion = [], citas = [], registro = [], servicios = [], huella = "", esAdmin = true, rangoReg = "hoy";
+// De dónde vino la cita: la web pública, el bot de WhatsApp o el propio panel.
+const ORIGEN_INFO = {web:{t:"Web",c:"o-web"}, whatsapp:{t:"WhatsApp",c:"o-wa"}, panel:{t:"Panel",c:"o-panel"}};
+function badgeOrigen(o){ const i = ORIGEN_INFO[o] || {t:o||"—",c:"o-otro"}; return `<span class="orig ${i.c}">${i.t}</span>`; }
+let filtro = "proximas", empleados = [], empleadosGestion = [], citas = [], registro = [], servicios = [], sucursales = [], sucFiltro = "", huella = "", esAdmin = true, rangoReg = "hoy";
 let modoModal = "crear", editId = null;
 let yo = null, agTurnos = null, agArrastrando = null, agendaFecha = null, reagId = null;
 let serviciosGestion = [], servEditId = null, resetEmpId = null;
@@ -881,6 +934,11 @@ function setFiltro(f){
   document.querySelectorAll("#vistaCitas .chip").forEach(c=>c.classList.toggle("activo", c.dataset.f===f));
   pintar();
 }
+function setSucursal(id){
+  sucFiltro = id || ""; huella = "";
+  pintar();
+  if(!document.getElementById("vistaAgenda").classList.contains("oculto")) renderAgenda();
+}
 function irA(f){ verVista('citas'); setFiltro(f); }  // clic en una tarjeta de resumen
 function setRangoReg(r){
   rangoReg = r;
@@ -933,9 +991,13 @@ function aplicarFiltro(){
   if(filtro==="completadas")return citas.filter(c=>c.estado==="completada");
   return citas;
 }
+function porSucursal(lista){
+  if(!sucFiltro) return lista;
+  return lista.filter(c => (c.sucursal_id||"") === sucFiltro);
+}
 function pintar(){
   stats();
-  const lista = aplicarFiltro();
+  const lista = porSucursal(aplicarFiltro());
   const tbody = document.getElementById("tbody");
   const vacio = document.getElementById("vacio");
   if(!lista.length){
@@ -951,7 +1013,7 @@ function pintar(){
     const t = fmt(c.inicia_en);
     return `<tr style="animation-delay:${i*40}ms">
       <td><div class="hora-h">${t.h}</div><div class="hora-d">${t.d}</div></td>
-      <td><div class="cli">${esc(c.cliente)}</div><div class="tel">${esc(c.telefono)}</div></td>
+      <td><div class="cli">${esc(c.cliente)} ${badgeOrigen(c.origen)}</div><div class="tel">${esc(c.telefono)}${c.sucursal?` · ${esc(c.sucursal)}`:""}</div></td>
       <td>${esc(c.servicio)}</td>
       <td><select onchange="cambiarEmpleada('${c.id}',this.value)" ${esAdmin?'':'disabled'}>${optsEmpleadas(c.empleado_id)}</select></td>
       <td><div class="estado-cell">
@@ -968,7 +1030,7 @@ async function cargar(forzar){
   try{
     const data = await api("/citas");
     citas = Array.isArray(data) ? data : [];
-    const h = JSON.stringify(citas) + filtro;
+    const h = JSON.stringify(citas) + filtro + sucFiltro;
     if(forzar || h !== huella){
       huella = h; pintar();
       // Si la agenda está abierta, refrescarla también (salvo durante un arrastre)
@@ -1040,7 +1102,7 @@ function renderAgenda(){
   }
 
   const dow = (new Date(fecha+"T12:00:00").getDay()+6)%7;   // 0=Lunes
-  const delDia = citas.filter(c => c.estado!=="cancelada" && partesTZ(c.inicia_en).fecha===fecha);
+  const delDia = citas.filter(c => c.estado!=="cancelada" && partesTZ(c.inicia_en).fecha===fecha && (!sucFiltro || (c.sucursal_id||"")===sucFiltro));
   const total = (AG_FIN-AG_INI)*60*AG_PX;
 
   grid.innerHTML =
@@ -1417,12 +1479,12 @@ function renderGrafica(){
     const x = gap + i * (bw + gap), y = H - padB - h;
     const etiqueta = MESES_AB[parseInt(m.split("-")[1]) - 1];
     bars += `<rect x="${x}" y="${y}" width="${bw}" height="${h}" rx="8" fill="url(#gradReg)"></rect>`;
-    bars += `<text x="${x+bw/2}" y="${y-8}" text-anchor="middle" font-size="12.5" font-weight="700" fill="#b83267">$${val.toLocaleString("es-MX")}</text>`;
-    bars += `<text x="${x+bw/2}" y="${H-12}" text-anchor="middle" font-size="12.5" fill="#9a8f97">${etiqueta}</text>`;
+    bars += `<text x="${x+bw/2}" y="${y-8}" text-anchor="middle" font-size="12.5" font-weight="700" fill="#8a6a2e">$${val.toLocaleString("es-MX")}</text>`;
+    bars += `<text x="${x+bw/2}" y="${H-12}" text-anchor="middle" font-size="12.5" fill="#8a8172">${etiqueta}</text>`;
   });
   cont.innerHTML = `<svg viewBox="0 0 ${W} ${H}" style="width:100%; max-width:${W}px; height:auto; display:block">
     <defs><linearGradient id="gradReg" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0%" stop-color="#d6447a"/><stop offset="100%" stop-color="#b83267"/></linearGradient></defs>
+      <stop offset="0%" stop-color="#dcbd6c"/><stop offset="100%" stop-color="#b8862f"/></linearGradient></defs>
     ${bars}</svg>`;
 }
 function exportarCSV(){
@@ -1445,7 +1507,7 @@ function exportarCSV(){
   const blob = new Blob(["\\ufeff" + csv], {type:"text/csv;charset=utf-8"});  // BOM para que Excel lea acentos
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
-  a.href = url; a.download = "registro-mdnails.csv"; a.click();
+  a.href = url; a.download = "registro-thenailsociety.csv"; a.click();
   URL.revokeObjectURL(url);
   toast("Archivo descargado");
 }
@@ -1544,9 +1606,33 @@ async function guardarPass(){
   document.getElementById("tbody").innerHTML = Array.from({length:3}).map(()=>
     `<tr><td colspan="5"><div class="skel"></div></td></tr>`).join("");
   if(esAdmin){ try{ empleados = await api("/empleados"); servicios = await api("/servicios"); }catch(e){ empleados = []; servicios = []; } }
+  // Sucursales: si hay más de una, mostrar el filtro (Norte / Sur / todas)
+  try{ sucursales = await api("/sucursales"); }catch(e){ sucursales = []; }
+  if(sucursales.length > 1){
+    const sel = document.getElementById("filtroSucursal");
+    sel.innerHTML = '<option value="">Todas las sucursales</option>' +
+      sucursales.map(s=>`<option value="${s.id}">${esc(s.nombre)}</option>`).join("");
+    sel.classList.remove("oculto");
+  }
   await cargar(true);
-  setInterval(()=>cargar(false), 7000);
+  conectarVivo();
+  setInterval(()=>cargar(false), 7000);   // respaldo por si el flujo en vivo se corta
 })();
+
+// ---- Tiempo real (SSE): refresca al instante cuando cambia una cita ----
+function conectarVivo(){
+  let es;
+  try{ es = new EventSource(API + "/eventos"); }catch(e){ return; }
+  es.addEventListener("listo", ()=>{ /* conectado; el texto lo pone cargar() */ });
+  es.onmessage = (ev)=>{
+    let d = {}; try{ d = JSON.parse(ev.data||"{}"); }catch(_){}
+    if(d.accion && d.accion !== "ping") cargar(true);   // cambio real de cita → refrescar ya
+  };
+  es.onerror = ()=>{
+    // El navegador reintenta solo; si no, el sondeo de 7s cubre el hueco.
+    document.getElementById("vivoTxt").textContent = "Reconectando…";
+  };
+}
 </script>
 </body>
 </html>

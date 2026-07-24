@@ -1,0 +1,90 @@
+.aurora {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+  z-index: 0;
+}
+
+.aurora__mancha {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(70px);
+  opacity: 0.55;
+  will-change: transform;
+}
+
+.aurora--claro .aurora__mancha.a {
+  width: 46vw;
+  height: 46vw;
+  left: -8vw;
+  top: -12vw;
+  background: radial-gradient(circle, rgba(201, 162, 77, 0.5), transparent 68%);
+  animation: flotarA 16s ease-in-out infinite;
+}
+.aurora--claro .aurora__mancha.b {
+  width: 40vw;
+  height: 40vw;
+  right: -6vw;
+  top: 12vw;
+  background: radial-gradient(circle, rgba(232, 120, 44, 0.32), transparent 66%);
+  animation: flotarB 20s ease-in-out infinite;
+}
+.aurora--claro .aurora__mancha.c {
+  width: 34vw;
+  height: 34vw;
+  left: 30vw;
+  bottom: -14vw;
+  background: radial-gradient(circle, rgba(232, 207, 143, 0.45), transparent 68%);
+  animation: flotarA 24s ease-in-out infinite reverse;
+}
+
+.aurora--oscuro .aurora__mancha.a {
+  width: 44vw;
+  height: 44vw;
+  left: -6vw;
+  top: -10vw;
+  background: radial-gradient(circle, rgba(201, 162, 77, 0.42), transparent 66%);
+  animation: flotarA 18s ease-in-out infinite;
+}
+.aurora--oscuro .aurora__mancha.b {
+  width: 38vw;
+  height: 38vw;
+  right: -8vw;
+  bottom: -10vw;
+  background: radial-gradient(circle, rgba(232, 120, 44, 0.3), transparent 64%);
+  animation: flotarB 22s ease-in-out infinite;
+}
+.aurora--oscuro .aurora__mancha.c {
+  width: 30vw;
+  height: 30vw;
+  right: 26vw;
+  top: 8vw;
+  background: radial-gradient(circle, rgba(166, 124, 46, 0.32), transparent 68%);
+  animation: flotarA 26s ease-in-out infinite reverse;
+}
+
+@keyframes flotarA {
+  0%,
+  100% {
+    transform: translate(0, 0) scale(1);
+  }
+  50% {
+    transform: translate(4vw, 3vw) scale(1.12);
+  }
+}
+@keyframes flotarB {
+  0%,
+  100% {
+    transform: translate(0, 0) scale(1);
+  }
+  50% {
+    transform: translate(-3vw, -2vw) scale(1.15);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .aurora__mancha {
+    animation: none !important;
+  }
+}

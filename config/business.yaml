@@ -1,31 +1,30 @@
-# Configuración del negocio — Generado por AgentKit
+# Configuración del negocio — The Nail Society Spa
 negocio:
-  nombre: "MDnails"
+  nombre: "The Nail Society Spa"
   descripcion: >
-    Salón de manicura y pedicura. Ofrecemos manicura, cambios de esmalte
-    de uñas, corte y limado de uñas, diseños para uñas y manicura con gel.
-    Ubicado en Blvd Benjamin Hill #3960 local 1, col Pemex, Culiacán,
-    Sinaloa, México, 80180. Instagram: @mdnailscln.
-  horario: "Lunes a Viernes 9:00am a 7:00pm, Sábados 9:00am a 2:00pm"
-  direccion: "Blvd Benjamin Hill #3960 local 1, col Pemex, Culiacán, Sinaloa, México, 80180"
-  contacto: "+52 1 667 428 1696"
+    Salón de belleza y spa en Aguascalientes especializado en uñas (acrílico,
+    gel, esmaltado, manicure y pedicure), podología, masajes y faciales.
+    Contamos con dos sucursales: Norte y Sur. Instagram: @thenailsociety_ags.
+  horario: "Sur: Lun a Vie 10:00–20:00, Sáb 10:00–18:00 · Norte: Lun a Sáb 10:00–20:00 · Domingo cerrado"
+  sucursales:
+    - nombre: "Sur"
+      direccion: "Av. Aguascalientes Sur #117, Villa Jardín II, 20235, Aguascalientes"
+      horario: "Lunes a Viernes 10:00–20:00, Sábados 10:00–18:00, Domingo cerrado"
+    - nombre: "Norte"
+      direccion: "Bulevar Luis Donaldo Colosio Murrieta 400, 20110, Aguascalientes"
+      horario: "Lunes a Sábado 10:00–20:00, Domingo cerrado"
+  contacto: "+52 449 273 3769"
   redes:
-    instagram: "@mdnailscln"
+    instagram: "@thenailsociety_ags"
 
 agente:
-  nombre: "MDnails"
-  tono: "amigable y casual"
+  nombre: "Sofía"
+  tono: "elegante, sofisticado y cálido"
   casos_de_uso:
     - "Responder preguntas frecuentes"
-    - "Agendar citas o reservaciones"
-
-servicios:
-  - "Manicura"
-  - "Cambios de esmalte de uñas"
-  - "Corte y limado de uñas"
-  - "Diseños para uñas"
-  - "Manicura con gel"
+    - "Consultar disponibilidad y agendar citas"
+    - "Reagendar o cancelar citas"
 
 metadata:
-  creado: "2026-06-14"
-  version: "1.0"
+  creado: "2026-07-24"
+  version: "2.0"

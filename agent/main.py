@@ -12,6 +12,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request, HTTPException
 from fastapi.responses import PlainTextResponse
 from fastapi.staticfiles import StaticFiles
+from fastapi.middleware.cors import CORSMiddleware
 from dotenv import load_dotenv
 
 from agent.brain import generar_respuesta
@@ -21,6 +22,7 @@ from agent.panel import router as panel_router
 from agent.reservas import router as reservas_router
 from agent.auth import router as auth_router
 from agent.recordatorios import iniciar_recordatorios
+from agent.eventos import iniciar_listener, detener_listener
 
 load_dotenv()
 
@@ -45,8 +47,11 @@ async def lifespan(app: FastAPI):
     # Recordatorios automáticos de citas en segundo plano
     tarea_recordatorios = iniciar_recordatorios(proveedor)
     logger.info("Recordatorios automáticos activados")
+    # Tiempo real: escucha los cambios de citas en Postgres para empujarlos al panel
+    await iniciar_listener()
     yield
     tarea_recordatorios.cancel()
+    await detener_listener()
 
 
 app = FastAPI(
@@ -54,6 +59,20 @@ app = FastAPI(
     version="1.0.0",
     lifespan=lifespan
 )
+
+# CORS: la web pública (React en Vercel) llama a la API de reservas desde otro
+# origen. Los orígenes permitidos se leen de la variable ORIGENES_WEB (lista
+# separada por comas, ej: "https://thenailsociety.vercel.app,http://localhost:5173").
+# Sin comodín "*" y sin credenciales: la API de reservas es pública y no usa cookies.
+_origenes = [o.strip() for o in os.getenv("ORIGENES_WEB", "").split(",") if o.strip()]
+if _origenes:
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=_origenes,
+        allow_methods=["GET", "POST"],
+        allow_headers=["Content-Type"],
+        allow_credentials=False,
+    )
 
 # Archivos estáticos (JS externalizado para poder usar una CSP estricta)
 app.mount("/static", StaticFiles(directory="static"), name="static")

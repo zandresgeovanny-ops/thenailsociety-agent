@@ -1,0 +1,54 @@
+.boton-mag {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5em;
+  padding: 15px 30px;
+  border-radius: 999px;
+  font-weight: 600;
+  font-size: 15px;
+  letter-spacing: 0.01em;
+  border: none;
+  transition:
+    transform 0.25s cubic-bezier(0.22, 1, 0.36, 1),
+    box-shadow 0.25s ease,
+    background 0.25s ease;
+  will-change: transform;
+}
+
+/* Sólido: naranja de acción */
+.boton-mag--solido {
+  background: linear-gradient(135deg, var(--naranja), var(--naranja-hondo));
+  color: #fff;
+  box-shadow: 0 12px 30px rgba(232, 120, 44, 0.38);
+}
+.boton-mag--solido:hover {
+  box-shadow: 0 16px 40px rgba(232, 120, 44, 0.5);
+}
+
+/* Contorno: filete dorado sobre fondo transparente. El texto va en tinta/crema,
+   nunca en dorado (contraste). */
+.boton-mag--contorno {
+  background: transparent;
+  color: var(--tinta);
+  border: 1.5px solid var(--oro);
+}
+.boton-mag--contorno:hover {
+  background: rgba(201, 162, 77, 0.12);
+}
+
+/* Sobre fondo oscuro, el contorno lleva texto crema */
+.seccion-oscura .boton-mag--contorno {
+  color: var(--crema);
+}
+
+.boton-mag:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+  box-shadow: none;
+}
+
+.boton-mag:focus-visible {
+  outline: 3px solid var(--naranja-texto);
+  outline-offset: 3px;
+}

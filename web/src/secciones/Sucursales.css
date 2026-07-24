@@ -1,0 +1,79 @@
+.sucursales {
+  padding: 96px 0;
+  background: var(--hueso);
+}
+
+.sucursales__cabecera {
+  text-align: center;
+  margin-bottom: 44px;
+}
+.sucursales__titulo {
+  font-size: clamp(30px, 5vw, 50px);
+  margin-top: 12px;
+  color: var(--tinta);
+}
+
+.sucursales__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 22px;
+}
+
+.sucursal__marco {
+  position: relative;
+  height: 100%;
+  padding: 40px 32px;
+  border-radius: var(--radio-lg);
+  background: var(--blanco);
+  color: var(--tinta);
+  overflow: hidden;
+  border: 1px solid var(--linea);
+  box-shadow: var(--sombra-suave);
+}
+.sucursal__marco::before {
+  content: "";
+  position: absolute;
+  inset: 10px;
+  border: 1px solid var(--oro);
+  border-radius: calc(var(--radio-lg) - 8px);
+  pointer-events: none;
+  opacity: 0.5;
+}
+.sucursal__etiqueta {
+  font-size: 11px;
+  letter-spacing: 0.28em;
+  text-transform: uppercase;
+  color: var(--oro-texto);
+}
+.sucursal__nombre {
+  font-size: 42px;
+  color: var(--tinta);
+  margin: 8px 0 16px;
+}
+.sucursal__dir {
+  color: var(--gris);
+  font-size: 15px;
+  max-width: 30ch;
+}
+.sucursal__tel {
+  margin-top: 8px;
+  color: var(--gris);
+  font-size: 15px;
+}
+.sucursal__cta {
+  margin-top: 26px;
+  background: none;
+  border: none;
+  color: var(--naranja-texto);
+  font-weight: 600;
+  font-size: 15px;
+  transition: transform 0.18s ease;
+}
+.sucursal__cta:hover {
+  transform: translateX(4px);
+}
+.sucursal__cta:focus-visible {
+  outline: 2px solid var(--naranja);
+  outline-offset: 3px;
+  border-radius: 4px;
+}

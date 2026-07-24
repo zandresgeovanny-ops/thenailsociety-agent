@@ -16,7 +16,7 @@ from agent.memory import citas_por_recordar, marcar_recordatorio_enviado
 
 logger = logging.getLogger("agentkit")
 
-ZONA = ZoneInfo("America/Mazatlan")
+ZONA = ZoneInfo("America/Mexico_City")
 INTERVALO_SEG = 1800  # revisa cada 30 minutos
 HORAS_ANTES = 24      # recuerda citas dentro de las próximas 24 h
 
@@ -27,7 +27,7 @@ def _texto_recordatorio(cliente: str, servicio: str, inicia_en_iso: str) -> str:
     hora = d.strftime("%I:%M %p").lstrip("0")
     saludo = f" {cliente}" if cliente else ""
     return (
-        f"Hola{saludo} 💅 Te recordamos tu cita en MDnails: {servicio} "
+        f"Hola{saludo} 💅 Te recordamos tu cita en The Nail Society Spa: {servicio} "
         f"el {fecha} a las {hora}. Responde para confirmar, reagendar o cancelar. ¡Te esperamos!"
     )
 

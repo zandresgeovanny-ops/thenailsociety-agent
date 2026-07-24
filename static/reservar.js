@@ -2,7 +2,7 @@
 // Externalizado desde reservas.py para permitir una CSP estricta (sin scripts ni
 // manejadores inline). Los clics se gestionan por delegación con atributos data-act.
 const API = "/reservar/api";
-const TZ = "America/Mazatlan";
+const TZ = "America/Mexico_City";
 let paso = 1;
 let servicios = [], empleados = [];
 const sel = { servicio:null, empleado:null, empleadoNombre:"Cualquiera disponible", fecha:null, hora:null };

@@ -22,7 +22,7 @@ from agent.seguridad import limitar
 
 from agent.memory import (
     ZONA_SALON, catalogo_servicios, listar_empleados, slots_disponibles,
-    buscar_o_crear_cliente, guardar_cita,
+    buscar_o_crear_cliente, guardar_cita, listar_sucursales, slots_sucursal,
 )
 from agent.branding import aplicar_marca
 
@@ -40,9 +40,27 @@ async def api_empleados():
     return await listar_empleados()
 
 
+@router.get("/api/sucursales")
+async def api_sucursales():
+    return await listar_sucursales()
+
+
 @router.get("/api/disponibilidad")
-async def api_disponibilidad(servicio_id: str, fecha: str, empleado_id: str | None = None):
-    return {"slots": await slots_disponibles(servicio_id, empleado_id, fecha)}
+async def api_disponibilidad(
+    servicio_id: str,
+    fecha: str,
+    empleado_id: str | None = None,
+    sucursal_id: str | None = None,
+):
+    # Si se elige una especialista concreta, su agenda manda. Si sólo se elige
+    # sucursal, se unen los huecos de todas sus especialistas.
+    if empleado_id:
+        slots = await slots_disponibles(servicio_id, empleado_id, fecha)
+    elif sucursal_id:
+        slots = await slots_sucursal(servicio_id, sucursal_id, fecha)
+    else:
+        slots = await slots_disponibles(servicio_id, None, fecha)
+    return {"slots": slots}
 
 
 @router.post("/api/reservar")
@@ -52,6 +70,7 @@ async def api_reservar(payload: dict, request: Request):
     telefono = (payload.get("telefono") or "").strip()
     servicio_id = payload.get("servicio_id")
     empleado_id = payload.get("empleado_id") or None
+    sucursal_id = payload.get("sucursal_id") or None
     fecha = payload.get("fecha")
     hora = payload.get("hora")
 
@@ -78,6 +97,7 @@ async def api_reservar(payload: dict, request: Request):
             inicia_en=inicia_en,
             termina_en=termina_en,
             empleado_id=uuid.UUID(empleado_id) if empleado_id else None,
+            sucursal_id=uuid.UUID(sucursal_id) if sucursal_id else None,
             notas=f"Reserva web · {servicio['nombre']}",
             origen="web",
         )
@@ -99,7 +119,7 @@ _PAGINA_HTML = """<!DOCTYPE html>
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>MDnails · Reservar cita</title>
+<title>The Nail Society Spa · Reservar cita</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Playfair+Display:wght@600;700&display=swap" rel="stylesheet">
 <style>
@@ -164,8 +184,8 @@ _PAGINA_HTML = """<!DOCTYPE html>
 <body>
 <div class="wrap">
   <div class="head">
-    <img class="logo" src="__LOGO__" alt="MD nails">
-    <h1>MD nails</h1>
+    <img class="logo" src="__LOGO__" alt="The Nail Society Spa">
+    <h1>The Nail Society Spa</h1>
     <p>Reserva tu cita en segundos</p>
   </div>
   <div class="pasos">
@@ -174,10 +194,10 @@ _PAGINA_HTML = """<!DOCTYPE html>
   </div>
   <div id="contenido"></div>
   <div class="pie">
-    Blvd Benjamín Hill #3960 local 1, col Pemex · Culiacán, Sin.
+    Sucursal Sur: Av. Aguascalientes Sur #117, Villa Jardín II · Sucursal Norte: Blvd. Luis Donaldo Colosio 400 · Aguascalientes
     <div class="red">
-      <a href="https://instagram.com/mdnailscln" target="_blank" rel="noopener">@mdnailscln</a>
-      <a href="https://wa.me/5216674281696" target="_blank" rel="noopener">WhatsApp</a>
+      <a href="https://instagram.com/thenailsociety_ags" target="_blank" rel="noopener">@thenailsociety_ags</a>
+      <a href="https://wa.me/524492733769" target="_blank" rel="noopener">WhatsApp</a>
     </div>
   </div>
 </div>

@@ -1,0 +1,309 @@
+.reserva {
+  padding: 96px 0;
+  background:
+    radial-gradient(700px 400px at 50% 0%, rgba(201, 162, 77, 0.1), transparent 60%),
+    var(--crema);
+}
+
+.reserva__cabecera {
+  text-align: center;
+  margin-bottom: 36px;
+}
+.reserva__titulo {
+  font-size: clamp(30px, 5vw, 50px);
+  margin-top: 12px;
+  color: var(--tinta);
+}
+.reserva__look {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 16px;
+  padding: 8px 16px;
+  border-radius: 999px;
+  background: var(--blanco);
+  border: 1px solid var(--oro);
+  font-size: 14px;
+  color: var(--tinta-suave);
+}
+.reserva__punto {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  border: 1px solid rgba(0, 0, 0, 0.15);
+}
+
+.reserva__tarjeta {
+  max-width: 680px;
+  margin: 0 auto;
+  background: var(--blanco);
+  border: 1px solid var(--linea);
+  border-radius: var(--radio-lg);
+  box-shadow: var(--sombra);
+  overflow: hidden;
+}
+
+/* Progreso */
+.reserva__pasos {
+  display: flex;
+  list-style: none;
+  margin: 0;
+  padding: 18px 22px;
+  gap: 6px;
+  border-bottom: 1px solid var(--linea);
+  background: var(--hueso);
+  overflow-x: auto;
+}
+.reserva__paso {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--gris-claro);
+  white-space: nowrap;
+  flex: none;
+}
+.reserva__paso:not(:last-child)::after {
+  content: "";
+  width: 18px;
+  height: 1px;
+  background: var(--linea);
+  margin-left: 4px;
+}
+.reserva__num {
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: var(--linea);
+  color: var(--gris);
+  font-size: 12px;
+  font-weight: 700;
+}
+.reserva__paso.on .reserva__num {
+  background: var(--naranja);
+  color: #fff;
+}
+.reserva__paso.on {
+  color: var(--tinta);
+  font-weight: 600;
+}
+.reserva__paso.hecho .reserva__num {
+  background: var(--oro-hondo);
+  color: #fff;
+}
+
+.reserva__panel {
+  padding: 26px 24px;
+  min-height: 240px;
+}
+
+/* Opciones (servicio / sucursal / especialista) */
+.reserva__opciones {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  max-height: 340px;
+  overflow-y: auto;
+}
+.opcion {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  text-align: left;
+  padding: 15px 18px;
+  border-radius: 14px;
+  border: 1.5px solid var(--linea);
+  background: var(--blanco);
+  transition: all 0.15s ease;
+}
+.opcion:hover {
+  border-color: var(--oro);
+  transform: translateY(-1px);
+}
+.opcion--on {
+  border-color: var(--naranja);
+  background: rgba(232, 120, 44, 0.06);
+}
+.opcion__info {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.opcion__nombre {
+  font-weight: 600;
+  color: var(--tinta);
+  font-size: 16px;
+}
+.opcion__meta {
+  font-size: 13px;
+  color: var(--gris);
+}
+.opcion__precio {
+  font-weight: 700;
+  color: var(--tinta);
+  flex: none;
+}
+
+/* Fecha y slots */
+.reserva__fecha {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+.reserva__label {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--tinta-suave);
+}
+.reserva__label input {
+  padding: 13px 14px;
+  border: 1.5px solid var(--linea);
+  border-radius: 12px;
+  font-family: inherit;
+  font-size: 15px;
+  color: var(--tinta);
+  background: var(--blanco);
+}
+.reserva__label input:focus {
+  outline: none;
+  border-color: var(--naranja);
+}
+.reserva__slots {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(74px, 1fr));
+  gap: 9px;
+  margin-top: 8px;
+}
+.slot {
+  padding: 11px 6px;
+  border-radius: 11px;
+  border: 1.5px solid var(--linea);
+  background: var(--blanco);
+  font-weight: 600;
+  font-size: 14px;
+  color: var(--tinta);
+  transition: all 0.12s ease;
+}
+.slot:hover {
+  border-color: var(--oro);
+}
+.slot--on {
+  background: var(--naranja);
+  border-color: var(--naranja);
+  color: #fff;
+}
+
+/* Datos y resumen */
+.reserva__datos {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.reserva__resumen {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 16px;
+  border-radius: 14px;
+  background: var(--hueso);
+  border: 1px solid var(--linea);
+  font-size: 14px;
+  color: var(--tinta-suave);
+}
+.reserva__resumen b {
+  display: inline-block;
+  width: 78px;
+  color: var(--gris);
+  font-weight: 600;
+}
+
+.reserva__vacio {
+  color: var(--gris);
+  font-size: 14px;
+  padding: 8px 0;
+}
+.reserva__error {
+  margin-top: 14px;
+  color: #b3261e;
+  background: #fdecea;
+  border: 1px solid #f5c2bd;
+  border-radius: 10px;
+  padding: 12px 14px;
+  font-size: 14px;
+}
+
+/* Navegación */
+.reserva__nav {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 18px 24px;
+  border-top: 1px solid var(--linea);
+  background: var(--hueso);
+}
+.reserva__atras {
+  background: none;
+  border: none;
+  color: var(--tinta-suave);
+  font-weight: 600;
+  font-size: 15px;
+  padding: 10px 8px;
+}
+.reserva__atras:hover {
+  color: var(--tinta);
+}
+.reserva__siguiente {
+  margin-left: auto;
+}
+
+/* Éxito */
+.reserva__exito {
+  max-width: 560px;
+  margin: 0 auto;
+  text-align: center;
+  background: var(--blanco);
+  border: 1px solid var(--oro);
+  border-radius: var(--radio-lg);
+  box-shadow: var(--sombra);
+  padding: 48px 32px;
+}
+.reserva__check {
+  width: 74px;
+  height: 74px;
+  margin: 0 auto 20px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  font-size: 38px;
+  color: #fff;
+  background: linear-gradient(135deg, var(--naranja), var(--naranja-hondo));
+}
+.reserva__exito h3 {
+  font-size: 30px;
+  color: var(--tinta);
+  margin-bottom: 10px;
+}
+.reserva__exito p {
+  color: var(--tinta-suave);
+}
+.reserva__exito-sub {
+  margin-top: 10px;
+  font-size: 14px;
+  color: var(--gris);
+}
+
+@media (max-width: 560px) {
+  .reserva__paso-txt {
+    display: none;
+  }
+  .reserva__paso:not(:last-child)::after {
+    width: 12px;
+  }
+}
