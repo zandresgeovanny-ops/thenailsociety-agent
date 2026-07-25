@@ -1,60 +1,263 @@
+/* Hero editorial de alta costura — blanco y dorado, asimétrico, texto a la izquierda.
+   La escena 3D se posiciona en absoluto a la derecha (contenedor vacío). */
+
 .hero {
   position: relative;
   min-height: 100svh;
-  display: grid;
-  place-items: center;
   background:
-    radial-gradient(1000px 600px at 80% -10%, rgba(201, 162, 77, 0.14), transparent 60%),
-    var(--negro);
-  color: var(--crema);
+    radial-gradient(900px 620px at 92% -5%, rgba(201, 162, 77, 0.12), transparent 62%),
+    linear-gradient(180deg, var(--blanco), var(--hueso));
+  color: var(--tinta);
   overflow: hidden;
-  padding: 120px 0 80px;
+  isolation: isolate;
 }
 
-.hero__contenido {
+/* ── Rejilla asimétrica ─────────────────────────────────────────────
+   El texto ocupa ~7 de 12 columnas a la izquierda; el resto es aire
+   sobre el que flota la escena 3D. */
+.hero__grid {
   position: relative;
   z-index: 2;
-  text-align: center;
-  max-width: 860px;
+  min-height: 100svh;
+  display: grid;
+  grid-template-columns: minmax(0, 7fr) 5fr;
+  align-items: center;
+  padding-block: clamp(120px, 18vh, 190px) 90px;
 }
 
+.hero__texto {
+  grid-column: 1;
+  max-width: 640px;
+  padding-left: clamp(0px, 2vw, 40px); /* desplazado, no pegado al borde */
+}
+
+/* ── Kicker con filete dorado ── */
 .hero__kicker {
-  display: inline-block;
-  color: var(--oro-claro); /* kicker corto, decorativo: excepción de tamaño grande */
-  margin-bottom: 22px;
+  display: inline-flex;
+  align-items: center;
+  gap: 14px;
+  font-family: var(--sans);
+  font-size: 12px;
+  letter-spacing: 0.28em;
+  text-transform: uppercase;
+  color: var(--oro-texto); /* bronce: apto como texto sobre claro */
+  margin-bottom: 26px;
+}
+.hero__regla {
+  width: 44px;
+  height: 1px;
+  background: linear-gradient(90deg, var(--oro), transparent);
+  flex: none;
 }
 
+/* ── Titular display ── */
 .hero__titulo {
-  font-size: clamp(44px, 8vw, 92px);
-  color: #fff;
+  font-family: var(--serif);
+  font-weight: 600;
+  font-size: clamp(46px, 8.4vw, 108px);
+  line-height: 0.94;
   letter-spacing: -0.02em;
+  color: var(--tinta);
+  margin: 0;
 }
 .hero__titulo em {
   font-style: italic;
-  color: var(--naranja);
+  font-weight: 500;
+  color: var(--oro-texto); /* acento bronce, no dorado puro */
 }
 
+/* ── Subtítulo, medida corta a la izquierda ── */
 .hero__sub {
-  margin: 26px auto 0;
-  max-width: 620px;
-  font-size: clamp(16px, 2vw, 19px);
-  color: #cfc7bb;
+  margin: 28px 0 0;
+  max-width: 430px;
+  font-size: clamp(15px, 1.6vw, 18px);
+  line-height: 1.65;
+  color: var(--tinta-suave);
 }
 
+/* ── Llamadas a la acción, alineadas a la izquierda ── */
 .hero__acciones {
   display: flex;
   gap: 16px;
-  justify-content: center;
   flex-wrap: wrap;
   margin-top: 38px;
 }
 
-.hero__filete {
+/* ── Metadatos tipo revista ── */
+.hero__meta {
+  display: flex;
+  align-items: center;
+  gap: 26px;
+  flex-wrap: wrap;
+  margin-top: 42px;
+  padding-top: 20px;
+  border-top: 1px solid var(--linea);
+  font-family: var(--sans);
+  font-size: 12px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--gris);
+}
+.hero__meta b {
+  color: var(--tinta);
+  font-weight: 700;
+}
+.hero__ig {
+  color: var(--naranja-texto);
+  font-weight: 600;
+  text-decoration: none;
+}
+.hero__ig:hover {
+  text-decoration: underline;
+}
+
+/* ── Etiqueta vertical al borde izquierdo ── */
+.hero__vertical {
   position: absolute;
-  left: 0;
+  left: 26px;
+  top: 50%;
+  transform: translateY(-50%) rotate(180deg);
+  writing-mode: vertical-rl;
+  font-family: var(--sans);
+  font-size: 11px;
+  letter-spacing: 0.34em;
+  text-transform: uppercase;
+  color: var(--oro-texto);
+  opacity: 0.75;
+  z-index: 3;
+}
+
+/* ── Número índice sobredimensionado, detalle de fondo ── */
+.hero__indice {
+  position: absolute;
+  left: clamp(-10px, 3vw, 40px);
+  bottom: -0.18em;
+  font-family: var(--serif);
+  font-weight: 600;
+  font-size: clamp(180px, 34vw, 460px);
+  line-height: 1;
+  color: rgba(201, 162, 77, 0.1);
+  pointer-events: none;
+  z-index: 1;
+  user-select: none;
+}
+
+/* ── Escena 3D: contenedor VACÍO, posición absoluta a la derecha ── */
+.hero__escena {
+  position: absolute;
+  top: 0;
   right: 0;
-  bottom: 0;
-  height: 3px;
-  background: linear-gradient(90deg, transparent, var(--oro), transparent);
-  z-index: 2;
+  height: 100%;
+  width: clamp(360px, 46vw, 760px);
+  z-index: 1;
+}
+.hero__escena-marco {
+  position: absolute;
+  inset: clamp(70px, 12vh, 130px) clamp(24px, 4vw, 70px) clamp(56px, 10vh, 110px)
+    0;
+  border: 1px solid var(--oro);
+  border-right: none;
+  border-radius: 220px 0 0 220px;
+  background:
+    radial-gradient(120% 90% at 70% 25%, rgba(255, 255, 255, 0.9), transparent 60%),
+    linear-gradient(155deg, var(--blanco), var(--crema) 70%, #efe6d3);
+  box-shadow: var(--sombra);
+  overflow: hidden;
+}
+.hero__escena-marco::before {
+  /* aro dorado interior, guiño de joyería */
+  content: "";
+  position: absolute;
+  inset: 16px;
+  border: 1px solid rgba(201, 162, 77, 0.35);
+  border-right: none;
+  border-radius: 200px 0 0 200px;
+}
+.hero__escena-hint {
+  position: absolute;
+  left: 34px;
+  bottom: 30px;
+  font-family: var(--sans);
+  font-size: 11px;
+  letter-spacing: 0.26em;
+  text-transform: uppercase;
+  color: var(--oro-texto);
+  opacity: 0.55;
+}
+
+/* ── Indicador de scroll ── */
+.hero__scroll {
+  position: absolute;
+  left: clamp(20px, 4vw, 64px);
+  bottom: 28px;
+  z-index: 3;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-family: var(--sans);
+  font-size: 11px;
+  letter-spacing: 0.24em;
+  text-transform: uppercase;
+  color: var(--gris);
+}
+.hero__scroll i {
+  display: block;
+  width: 46px;
+  height: 1px;
+  background: var(--oro-hondo);
+  transform-origin: left;
+  animation: hero-scroll 2.2s ease-in-out infinite;
+}
+@keyframes hero-scroll {
+  0%,
+  100% {
+    transform: scaleX(0.3);
+    opacity: 0.4;
+  }
+  50% {
+    transform: scaleX(1);
+    opacity: 1;
+  }
+}
+
+/* ── Responsivo: la escena 3D sube al flujo y el texto se apila ── */
+@media (max-width: 980px) {
+  .hero {
+    display: flex;
+    flex-direction: column;
+  }
+  .hero__escena {
+    position: relative;
+    order: -1;
+    width: 100%;
+    height: 46svh;
+  }
+  .hero__escena-marco {
+    inset: 20px;
+    border-right: 1px solid var(--oro);
+    border-radius: var(--radio-lg);
+  }
+  .hero__escena-marco::before {
+    inset: 12px;
+    border-right: 1px solid rgba(201, 162, 77, 0.35);
+    border-radius: calc(var(--radio-lg) - 8px);
+  }
+  .hero__grid {
+    grid-template-columns: 1fr;
+    min-height: auto;
+    padding-block: 30px 76px;
+  }
+  .hero__vertical,
+  .hero__indice {
+    display: none;
+  }
+  .hero__scroll {
+    display: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hero__scroll i {
+    animation: none;
+  }
 }
