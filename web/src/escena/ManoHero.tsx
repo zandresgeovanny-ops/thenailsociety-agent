@@ -1,22 +1,25 @@
-// ManoHero — la mano 3D del hero. Incrusta una escena de Spline (publicada por
-// el salón) y, al hacer scroll, la acerca ligeramente a la pantalla con GSAP
-// ScrollTrigger para que la mano se vuelva más protagonista.
+// ManoHero — la mano 3D del hero. Incrusta la escena de Spline (publicada por
+// el salón como enlace de visor) mediante un <iframe>, y al hacer scroll la
+// acerca ligeramente a la pantalla con GSAP ScrollTrigger para que la mano se
+// vuelva más protagonista.
 //
-// La URL de la escena se lee de la variable de entorno VITE_SPLINE_HERO. Mientras
-// no exista, se muestra un marcador elegante de marca (nunca un hueco roto).
+// La URL se lee de VITE_SPLINE_HERO. Mientras no exista, se muestra un marcador
+// elegante de marca (nunca un hueco roto).
 
-import { Suspense, lazy, useRef } from "react";
+import { useRef, useState } from "react";
 import { useGSAP } from "@gsap/react";
 import gsap from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
 
 gsap.registerPlugin(ScrollTrigger, useGSAP);
 
-// Carga diferida: el runtime 3D solo pesa si de verdad hay escena que mostrar.
-const Spline = lazy(() => import("@splinetool/react-spline"));
-
-// URL de la escena Spline (scene.splinecode). Vacía hasta que el salón la publique.
-const ESCENA_SPLINE = (import.meta.env.VITE_SPLINE_HERO as string | undefined)?.trim();
+// URL de la escena Spline (enlace de visor my.spline.design). Se puede
+// sobrescribir con la env VITE_SPLINE_HERO; si no, usa la escena publicada del
+// salón para que producción funcione sin configuración extra.
+const ESCENA_POR_DEFECTO =
+  "https://my.spline.design/particleshand-om4U3Zzs33VSaC7TbheRtyBR/";
+const ESCENA_SPLINE =
+  (import.meta.env.VITE_SPLINE_HERO as string | undefined)?.trim() || ESCENA_POR_DEFECTO;
 
 // ¿El usuario pidió menos movimiento? Entonces no animamos el acercamiento.
 const reduceMovimiento =
@@ -26,6 +29,7 @@ const reduceMovimiento =
 export default function ManoHero() {
   const cont = useRef<HTMLDivElement>(null);
   const capa = useRef<HTMLDivElement>(null);
+  const [cargada, setCargada] = useState(false);
 
   // Acercamiento al hacer scroll: la mano crece y sube un poco, sincronizada
   // con la barra de desplazamiento. Se salta si el usuario prefiere sin
@@ -56,9 +60,19 @@ export default function ManoHero() {
     <div className="mano-hero" ref={cont}>
       <div className="mano-hero__capa" ref={capa}>
         {ESCENA_SPLINE ? (
-          <Suspense fallback={<Marcador cargando />}>
-            <Spline scene={ESCENA_SPLINE} />
-          </Suspense>
+          <>
+            <iframe
+              className="mano-hero__frame"
+              src={ESCENA_SPLINE}
+              title="Mano 3D — The Nail Society"
+              loading="lazy"
+              onLoad={() => setCargada(true)}
+              allow="autoplay; fullscreen"
+            />
+            {/* Parche que oculta el sello "Built with Spline" de la esquina */}
+            <span className="mano-hero__sello-tapa" aria-hidden="true" />
+            {!cargada && <Marcador cargando />}
+          </>
         ) : (
           <Marcador />
         )}

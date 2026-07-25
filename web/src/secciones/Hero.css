@@ -201,10 +201,25 @@
   transform-origin: 62% 42%; /* acerca hacia las uñas, no al centro geométrico */
   will-change: transform;
 }
-.mano-hero__capa canvas {
+.mano-hero__capa canvas,
+.mano-hero__frame {
   width: 100% !important;
   height: 100% !important;
   display: block;
+  border: 0;
+}
+
+/* Parche que cubre el sello "Built with Spline" (esquina inferior derecha del
+   iframe), fundido con el fondo crema del marco para que no se note. */
+.mano-hero__sello-tapa {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  width: 150px;
+  height: 52px;
+  background: linear-gradient(155deg, var(--crema) 40%, #efe6d3);
+  pointer-events: none;
+  z-index: 3;
 }
 
 /* Marcador de marca (sin URL de escena todavía, o mientras carga) */
