@@ -183,6 +183,75 @@
   text-transform: uppercase;
   color: var(--oro-texto);
   opacity: 0.55;
+  z-index: 2;
+}
+
+/* ── Mano 3D (Spline) dentro del marco dorado ─────────────────────────
+   .mano-hero llena el marco; .mano-hero__capa es la que GSAP escala al
+   hacer scroll para el efecto de acercamiento. */
+.mano-hero {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  z-index: 1;
+}
+.mano-hero__capa {
+  position: absolute;
+  inset: 0;
+  transform-origin: 62% 42%; /* acerca hacia las uñas, no al centro geométrico */
+  will-change: transform;
+}
+.mano-hero__capa canvas {
+  width: 100% !important;
+  height: 100% !important;
+  display: block;
+}
+
+/* Marcador de marca (sin URL de escena todavía, o mientras carga) */
+.mano-hero__marcador {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-content: center;
+  gap: 18px;
+  justify-items: center;
+}
+.mano-hero__anillo {
+  width: clamp(120px, 20vw, 190px);
+  height: clamp(120px, 20vw, 190px);
+  border-radius: 50%;
+  border: 1px solid var(--oro);
+  box-shadow: inset 0 0 60px rgba(201, 162, 77, 0.18);
+  background: radial-gradient(
+    120% 120% at 60% 30%,
+    rgba(255, 255, 255, 0.9),
+    rgba(239, 230, 211, 0.4) 70%
+  );
+  animation: mano-hero-latido 4.5s ease-in-out infinite;
+}
+.mano-hero__texto {
+  font-family: var(--sans);
+  font-size: 11px;
+  letter-spacing: 0.26em;
+  text-transform: uppercase;
+  color: var(--oro-texto);
+  opacity: 0.7;
+}
+@keyframes mano-hero-latido {
+  0%,
+  100% {
+    transform: scale(0.96);
+    opacity: 0.85;
+  }
+  50% {
+    transform: scale(1.04);
+    opacity: 1;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .mano-hero__anillo {
+    animation: none;
+  }
 }
 
 /* ── Indicador de scroll ── */

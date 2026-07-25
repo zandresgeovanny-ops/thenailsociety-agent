@@ -17,7 +17,7 @@ export default function Navbar({ alReservar }: Props) {
           <span className="navbar__spa">SPA · AGUASCALIENTES</span>
         </a>
         <nav className="navbar__links" aria-label="Secciones">
-          <a href="#configurador">Diseña tus uñas</a>
+          <a href="#top">Inicio</a>
           <a href="#servicios">Servicios</a>
           <a href="#equipo">Equipo</a>
           <a href="#sucursales">Sucursales</a>

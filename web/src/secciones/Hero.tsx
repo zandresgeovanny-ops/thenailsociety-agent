@@ -7,14 +7,15 @@
 import BotonMagnetico from "../ui/BotonMagnetico";
 import TextoRevelado from "../ui/TextoRevelado";
 import FondoAurora from "../ui/FondoAurora";
+import ManoHero from "../escena/ManoHero";
 import "./Hero.css";
 
 interface Props {
   alReservar: () => void;
-  alConfigurar: () => void;
+  alVerServicios: () => void;
 }
 
-export default function Hero({ alReservar, alConfigurar }: Props) {
+export default function Hero({ alReservar, alVerServicios }: Props) {
   return (
     <section className="hero" id="top">
       <FondoAurora variante="claro" />
@@ -40,15 +41,15 @@ export default function Hero({ alReservar, alConfigurar }: Props) {
           </TextoRevelado>
 
           <TextoRevelado como="p" className="hero__sub" retraso={0.16}>
-            Diseña tu look en 3D, elígelo a tu gusto y resérvalo en segundos.
-            Un spa donde cada uña es una pieza única, en nuestras sucursales
-            Norte y Sur.
+            Manicura de autor donde cada uña es una pieza única. Reserva en
+            segundos con nuestras especialistas, en las sucursales Norte y Sur
+            de Aguascalientes.
           </TextoRevelado>
 
           <TextoRevelado className="hero__acciones" retraso={0.24}>
             <BotonMagnetico onClick={alReservar}>Reservar mi cita</BotonMagnetico>
-            <BotonMagnetico variante="contorno" onClick={alConfigurar}>
-              Diseñar mis uñas
+            <BotonMagnetico variante="contorno" onClick={alVerServicios}>
+              Ver servicios
             </BotonMagnetico>
           </TextoRevelado>
 
@@ -78,8 +79,9 @@ export default function Hero({ alReservar, alConfigurar }: Props) {
         dibuja encima y tapa el placeholder cuando llegue el modelo.
       */}
       <div className="hero__escena" id="hero-canvas-3d">
-        <div className="hero__escena-marco" aria-hidden="true">
-          <span className="hero__escena-hint">Tu diseño, en 3D</span>
+        <div className="hero__escena-marco">
+          <ManoHero />
+          <span className="hero__escena-hint">The Nail Society — 3D</span>
         </div>
       </div>
 

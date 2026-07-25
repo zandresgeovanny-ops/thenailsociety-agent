@@ -13,15 +13,12 @@ import {
   type Sucursal,
   type Empleado,
 } from "../api/reservas";
-import type { EstadoConfig } from "../escena/materiales";
 import BotonMagnetico from "../ui/BotonMagnetico";
 import TextoRevelado from "../ui/TextoRevelado";
 import "./Reserva.css";
 
 interface Props {
-  config: EstadoConfig;
   servicioSugeridoId: string | null;
-  lookElegido: boolean;
 }
 
 const PASOS = ["Servicio", "Sucursal", "Especialista", "Fecha y hora", "Tus datos"];
@@ -36,7 +33,7 @@ const pesos = (n: number | null) =>
   n == null ? "" : `$${n.toLocaleString("es-MX")}`;
 
 const Reserva = forwardRef<HTMLElement, Props>(function Reserva(
-  { config, servicioSugeridoId, lookElegido },
+  { servicioSugeridoId },
   ref,
 ) {
   const [paso, setPaso] = useState(0);
@@ -140,13 +137,6 @@ const Reserva = forwardRef<HTMLElement, Props>(function Reserva(
           <TextoRevelado como="h2" className="reserva__titulo" retraso={0.06}>
             Reserva en un minuto
           </TextoRevelado>
-          {lookElegido && (
-            <div className="reserva__look">
-              Tu look:{" "}
-              <span className="reserva__punto" style={{ background: config.color.hex }} />
-              {config.color.nombre} · {config.acabado.nombre}
-            </div>
-          )}
         </div>
 
         {exito ? (
