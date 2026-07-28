@@ -1,6 +1,6 @@
 // Servicios — catálogo real traído del backend, agrupado por categoría.
 // Cada servicio es una TarjetaTilt con nombre, duración y precio. El precio se
-// muestra en tinta (nunca en dorado) y con el naranja como acento del "desde".
+// muestra en tinta (nunca en dorado) y con el bronce como acento del "desde".
 
 import { useEffect, useState } from "react";
 import { obtenerServicios, type Servicio } from "../api/reservas";

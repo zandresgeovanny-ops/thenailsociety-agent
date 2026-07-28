@@ -51,7 +51,7 @@
   line-height: 1.8;
 }
 .footer__cols a {
-  color: var(--naranja-texto);
+  color: var(--acento-texto);
   font-weight: 600;
 }
 .footer__cols a:hover {

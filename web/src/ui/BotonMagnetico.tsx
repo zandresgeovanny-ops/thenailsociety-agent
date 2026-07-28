@@ -1,5 +1,5 @@
 // BotonMagnetico — el botón sigue sutilmente al cursor cuando está cerca,
-// dando sensación de "imán". El CTA principal de la marca. Naranja de acento.
+// dando sensación de "imán". El CTA principal de la marca, en dorado de acento.
 // Con movimiento reducido no se desplaza (queda como botón normal).
 
 import { useRef, type ReactNode, type MouseEvent } from "react";

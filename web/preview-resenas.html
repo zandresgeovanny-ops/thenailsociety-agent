@@ -1,0 +1,295 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>The Nail Society — sección Reseñas (previsualización)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,600;1,400;1,600&family=Inter:wght@400;600;700&display=swap" rel="stylesheet" />
+<style>
+/* ─────────────────────────────────────────────────────────────────
+   Previsualización autocontenida de la sección Reseñas.
+   Los tokens son copia literal de web/src/index.css y el estilo de la
+   sección es copia literal de web/src/secciones/Resenas.css.
+   Este archivo existe solo para revisar el diseño sin levantar Vite:
+   la fuente de verdad sigue siendo el componente React.
+   ───────────────────────────────────────────────────────────────── */
+
+:root{
+  --hueso:#f7f4ee; --blanco:#fff; --crema:#f4efe6;
+  --negro:#141414; --carbon:#1e1c1a;
+  --oro:#c9a24d; --oro-claro:#e8cf8f; --oro-hondo:#a67c2e; --oro-texto:#7a5f22;
+
+  --acento:#c9a24d; --acento-claro:#e0bd6f; --acento-hondo:#a67c2e;
+  --acento-texto:#7a5f22; --acento-sobre:#171310; --acento-rgb:201,162,77;
+
+  --tinta:#1a1a1a; --tinta-suave:#4a4540; --gris:#6b6560;
+  --linea:#e6ded1;
+  --serif:"Cormorant Garamond",Georgia,serif;
+  --sans:"Inter",system-ui,sans-serif;
+  --sombra:0 18px 50px rgba(20,16,10,.14);
+  --sombra-suave:0 8px 24px rgba(20,16,10,.08);
+  --radio:18px;
+}
+*{box-sizing:border-box}
+body{margin:0;font-family:var(--sans);color:var(--tinta);background:var(--hueso);-webkit-font-smoothing:antialiased}
+h2{font-family:var(--serif);font-weight:600;line-height:1.05;margin:0;letter-spacing:-.01em}
+p{margin:0;line-height:1.65}
+::selection{background:var(--acento);color:var(--acento-sobre)}
+.contenedor{width:min(1180px,92vw);margin-inline:auto}
+.kicker{font-size:12px;letter-spacing:.28em;text-transform:uppercase;font-weight:600;color:var(--acento-texto)}
+
+/* Aviso de previsualización, no forma parte de la sección */
+.aviso{font-size:12px;letter-spacing:.16em;text-transform:uppercase;color:var(--gris);
+  padding:16px 0;border-bottom:1px solid var(--linea);text-align:center}
+
+.revelado{opacity:0;transform:translateY(18px);transition:opacity .7s cubic-bezier(.22,1,.36,1),transform .7s cubic-bezier(.22,1,.36,1)}
+.revelado--on{opacity:1;transform:none}
+
+/* ── Sección ──────────────────────────────────────────────────── */
+.resenas{position:relative;padding:130px 0 140px;overflow:hidden;
+  background:radial-gradient(circle at 18% 12%,rgba(var(--acento-rgb),.09),transparent 46%),
+             radial-gradient(circle at 88% 82%,rgba(var(--acento-rgb),.07),transparent 44%),
+             linear-gradient(180deg,var(--hueso),var(--crema) 62%,var(--hueso))}
+.resenas::before{content:"";position:absolute;inset:0;pointer-events:none;opacity:.5;
+  background-image:radial-gradient(rgba(var(--acento-rgb),.22) 1px,transparent 1px),
+                   radial-gradient(rgba(var(--acento-rgb),.13) 1px,transparent 1px);
+  background-size:26px 26px,26px 26px;background-position:0 0,13px 13px}
+.resenas__indice{position:absolute;top:54px;right:4vw;font-family:var(--serif);
+  font-size:clamp(90px,13vw,190px);line-height:1;color:var(--acento);opacity:.12;user-select:none}
+.resenas__grid{position:relative;z-index:1;display:grid;
+  grid-template-columns:minmax(260px,320px) 1fr;gap:clamp(40px,6vw,96px);align-items:start}
+
+.resenas__sello-col{position:sticky;top:40px}
+.resenas__sello{position:relative;width:min(280px,100%);aspect-ratio:1;display:grid;place-items:center;margin-inline:auto}
+.resenas__medalla{position:absolute;inset:0;width:100%;height:100%}
+.resenas__aro,.resenas__aro-fino{fill:none;stroke:var(--acento)}
+.resenas__aro{stroke-width:1.6;opacity:.85}
+.resenas__aro-fino{stroke-width:.75;opacity:.42}
+.resenas__orbita{font-family:var(--sans);font-size:9.5px;font-weight:600;letter-spacing:.34em;
+  text-transform:uppercase;fill:var(--acento-texto);opacity:.72}
+.resenas__nucleo{position:relative;display:grid;justify-items:center;gap:8px;text-align:center}
+.resenas__cifra{font-family:var(--serif);font-size:72px;font-weight:600;line-height:.9;
+  color:var(--tinta);font-variant-numeric:tabular-nums}
+.resenas__estrellas{width:112px;height:22px}
+.resenas__total{font-size:11px;font-weight:600;letter-spacing:.18em;text-transform:uppercase;color:var(--gris)}
+
+.resenas__sucursales{list-style:none;margin:38px 0 0;padding:0;display:grid;gap:20px}
+.resenas__suc{display:grid;grid-template-columns:1fr auto;gap:6px 12px;padding-bottom:14px;border-bottom:1px solid var(--linea)}
+.resenas__suc-nombre{font-size:11px;font-weight:700;letter-spacing:.22em;text-transform:uppercase;color:var(--acento-texto)}
+.resenas__suc-dato{display:flex;align-items:baseline;gap:6px}
+.resenas__suc-dato b{font-family:var(--serif);font-size:22px;font-weight:600;color:var(--tinta);font-variant-numeric:tabular-nums}
+.resenas__suc-dato i{font-style:normal;font-size:12px;color:var(--gris)}
+.resenas__suc-barra{grid-column:1/-1;height:3px;border-radius:999px;background:var(--linea);position:relative;overflow:hidden}
+.resenas__suc-barra::after{content:"";position:absolute;inset:0 auto 0 0;width:var(--llena,0);
+  border-radius:inherit;background:linear-gradient(90deg,var(--acento-claro),var(--acento))}
+.resenas__pie{margin-top:22px;font-size:12px;line-height:1.6;color:var(--gris)}
+
+.resenas__cabecera{max-width:620px;margin-bottom:54px}
+.resenas__titulo{margin-top:14px;font-size:clamp(34px,4.4vw,58px);color:var(--tinta)}
+.resenas__titulo em{font-style:italic;color:var(--tinta-suave)}
+.resenas__entrada{margin-top:18px;max-width:46ch;font-size:16px;color:var(--tinta-suave)}
+
+.resenas__lista{display:grid;grid-template-columns:repeat(2,1fr);gap:22px}
+.resena{position:relative;margin:0;padding:34px 32px 28px;background:rgba(255,255,255,.66);
+  backdrop-filter:blur(2px);border:1px solid var(--linea);border-radius:var(--radio);
+  box-shadow:var(--sombra-suave);
+  transition:transform .4s cubic-bezier(.22,1,.36,1),box-shadow .4s ease,border-color .4s ease,opacity .7s cubic-bezier(.22,1,.36,1)}
+.resena::after{content:"";position:absolute;inset:7px;border:1px solid rgba(var(--acento-rgb),.26);
+  border-radius:calc(var(--radio) - 6px);pointer-events:none}
+.resena.revelado--on:hover{transform:translateY(-5px);box-shadow:var(--sombra);border-color:rgba(var(--acento-rgb),.5)}
+.resena:first-child{grid-column:1/-1;padding:42px 40px 34px}
+.resena:first-child .resena__texto{font-size:clamp(24px,2.5vw,32px)}
+.resena__comilla{position:absolute;top:6px;left:22px;font-family:var(--serif);font-size:92px;
+  line-height:1;color:var(--acento);opacity:.22;user-select:none}
+.resena__texto{position:relative;margin:0;font-family:var(--serif);font-style:italic;
+  font-size:20px;line-height:1.42;color:var(--tinta);text-wrap:pretty}
+.resena__filete{display:block;width:44px;height:1px;margin:22px 0 14px;background:linear-gradient(90deg,var(--acento),transparent)}
+.resena__firma{display:flex;flex-wrap:wrap;align-items:baseline;gap:4px 12px}
+.resena__autor{font-size:12px;font-weight:700;letter-spacing:.16em;text-transform:uppercase;color:var(--acento-texto)}
+.resena__meta{font-size:12px;color:var(--gris)}
+
+.resenas__cierre{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;
+  gap:20px;margin-top:46px;padding-top:32px;border-top:1px solid var(--linea)}
+.resenas__invitacion{font-family:var(--serif);font-style:italic;font-size:clamp(22px,2.6vw,30px);color:var(--tinta)}
+.boton-mag{display:inline-flex;align-items:center;justify-content:center;padding:15px 30px;
+  border-radius:999px;font-family:inherit;font-weight:600;font-size:15px;border:none;cursor:pointer;
+  background:linear-gradient(135deg,var(--acento-claro),var(--acento));color:var(--acento-sobre);
+  box-shadow:0 12px 30px rgba(var(--acento-rgb),.34);transition:transform .25s cubic-bezier(.22,1,.36,1),box-shadow .25s,background .25s}
+.boton-mag:hover{background:linear-gradient(135deg,var(--acento),var(--acento-hondo));
+  box-shadow:0 16px 40px rgba(var(--acento-rgb),.46);transform:translateY(-2px)}
+
+@media(max-width:1080px){
+  .resenas__grid{grid-template-columns:1fr}
+  .resenas__sello-col{position:static;display:grid;grid-template-columns:minmax(220px,260px) 1fr;gap:36px;align-items:center}
+  .resenas__sucursales{margin-top:0}
+  .resenas__pie{grid-column:1/-1;margin-top:4px}
+}
+@media(max-width:720px){
+  .resenas{padding:88px 0 96px}
+  .resenas__sello-col{grid-template-columns:1fr;gap:28px;justify-items:center;text-align:center}
+  .resenas__suc{text-align:left}
+  .resenas__lista{grid-template-columns:1fr}
+  .resena,.resena:first-child{padding:30px 24px 26px}
+  .resena:first-child .resena__texto{font-size:22px}
+  .resenas__cierre{flex-direction:column;align-items:flex-start}
+}
+@media(prefers-reduced-motion:reduce){
+  .revelado{opacity:1;transform:none;transition:none}
+}
+</style>
+</head>
+<body>
+
+<p class="aviso">Previsualización estática · la fuente de verdad es web/src/secciones/Resenas.tsx</p>
+
+<section class="resenas" id="resenas">
+  <span class="resenas__indice" aria-hidden="true">04</span>
+
+  <div class="contenedor resenas__grid">
+
+    <aside class="resenas__sello-col">
+      <div class="resenas__sello">
+        <svg class="resenas__medalla" viewBox="0 0 220 220" aria-hidden="true">
+          <defs>
+            <path id="orbita" d="M110,110 m-84,0 a84,84 0 1,1 168,0 a84,84 0 1,1 -168,0" />
+            <linearGradient id="relleno-media" x1="0" x2="1" y1="0" y2="0">
+              <stop offset="81.2%" stop-color="var(--acento)" />
+              <stop offset="81.2%" stop-color="transparent" />
+            </linearGradient>
+          </defs>
+          <circle cx="110" cy="110" r="96" class="resenas__aro-fino" />
+          <circle cx="110" cy="110" r="88" class="resenas__aro" id="aro" />
+          <text class="resenas__orbita">
+            <textPath href="#orbita" startOffset="0%">THE NAIL SOCIETY · AGUASCALIENTES · NORTE &amp; SUR ·</textPath>
+          </text>
+        </svg>
+
+        <div class="resenas__nucleo">
+          <span class="resenas__cifra" id="cifra">4.1</span>
+          <svg class="resenas__estrellas" viewBox="0 0 124 24" role="img" aria-label="4.1 de 5 estrellas">
+            <g transform="translate(0 0)"><path d="M12 2.6l2.72 5.86 6.28.78-4.64 4.4 1.22 6.36L12 16.9l-5.58 3.1 1.22-6.36L3 9.24l6.28-.78L12 2.6z" fill="none" stroke="var(--acento)" stroke-width="1" opacity=".42"/><path d="M12 2.6l2.72 5.86 6.28.78-4.64 4.4 1.22 6.36L12 16.9l-5.58 3.1 1.22-6.36L3 9.24l6.28-.78L12 2.6z" fill="url(#relleno-media)"/></g>
+            <g transform="translate(25 0)"><path d="M12 2.6l2.72 5.86 6.28.78-4.64 4.4 1.22 6.36L12 16.9l-5.58 3.1 1.22-6.36L3 9.24l6.28-.78L12 2.6z" fill="none" stroke="var(--acento)" stroke-width="1" opacity=".42"/><path d="M12 2.6l2.72 5.86 6.28.78-4.64 4.4 1.22 6.36L12 16.9l-5.58 3.1 1.22-6.36L3 9.24l6.28-.78L12 2.6z" fill="url(#relleno-media)"/></g>
+            <g transform="translate(50 0)"><path d="M12 2.6l2.72 5.86 6.28.78-4.64 4.4 1.22 6.36L12 16.9l-5.58 3.1 1.22-6.36L3 9.24l6.28-.78L12 2.6z" fill="none" stroke="var(--acento)" stroke-width="1" opacity=".42"/><path d="M12 2.6l2.72 5.86 6.28.78-4.64 4.4 1.22 6.36L12 16.9l-5.58 3.1 1.22-6.36L3 9.24l6.28-.78L12 2.6z" fill="url(#relleno-media)"/></g>
+            <g transform="translate(75 0)"><path d="M12 2.6l2.72 5.86 6.28.78-4.64 4.4 1.22 6.36L12 16.9l-5.58 3.1 1.22-6.36L3 9.24l6.28-.78L12 2.6z" fill="none" stroke="var(--acento)" stroke-width="1" opacity=".42"/><path d="M12 2.6l2.72 5.86 6.28.78-4.64 4.4 1.22 6.36L12 16.9l-5.58 3.1 1.22-6.36L3 9.24l6.28-.78L12 2.6z" fill="url(#relleno-media)"/></g>
+            <g transform="translate(100 0)"><path d="M12 2.6l2.72 5.86 6.28.78-4.64 4.4 1.22 6.36L12 16.9l-5.58 3.1 1.22-6.36L3 9.24l6.28-.78L12 2.6z" fill="none" stroke="var(--acento)" stroke-width="1" opacity=".42"/><path d="M12 2.6l2.72 5.86 6.28.78-4.64 4.4 1.22 6.36L12 16.9l-5.58 3.1 1.22-6.36L3 9.24l6.28-.78L12 2.6z" fill="url(#relleno-media)"/></g>
+          </svg>
+          <span class="resenas__total">150 reseñas en Google</span>
+        </div>
+      </div>
+
+      <ul class="resenas__sucursales">
+        <li class="resenas__suc">
+          <span class="resenas__suc-nombre">Sucursal Norte</span>
+          <span class="resenas__suc-dato"><b>4.2</b><i>/ 80 reseñas</i></span>
+          <span class="resenas__suc-barra" style="--llena:84%" aria-hidden="true"></span>
+        </li>
+        <li class="resenas__suc">
+          <span class="resenas__suc-nombre">Sucursal Sur</span>
+          <span class="resenas__suc-dato"><b>3.9</b><i>/ 70 reseñas</i></span>
+          <span class="resenas__suc-barra" style="--llena:78%" aria-hidden="true"></span>
+        </li>
+      </ul>
+
+      <p class="resenas__pie">Reseñas públicas de Google Maps, transcritas tal cual.</p>
+    </aside>
+
+    <div class="resenas__libro">
+      <header class="resenas__cabecera">
+        <span class="kicker revelado">El libro de la Society</span>
+        <h2 class="resenas__titulo revelado" style="transition-delay:.06s">Lo que dicen quienes<br><em>ya se sentaron aquí</em></h2>
+        <p class="resenas__entrada revelado" style="transition-delay:.12s">Cada reseña llega de Google, sin retocar. Así se escriben cuando una sale del salón.</p>
+      </header>
+
+      <div class="resenas__lista">
+        <figure class="resena revelado">
+          <span class="resena__comilla" aria-hidden="true">&ldquo;</span>
+          <blockquote class="resena__texto">Me encanta! Variedad de colores en gelish y la atención es excelente y siempre te ofrecen bebida durante tu estancia.</blockquote>
+          <span class="resena__filete" aria-hidden="true"></span>
+          <figcaption class="resena__firma"><span class="resena__autor">Florencia Ortega</span><span class="resena__meta">Sur · Hace 3 años</span></figcaption>
+        </figure>
+
+        <figure class="resena revelado" style="transition-delay:.06s">
+          <span class="resena__comilla" aria-hidden="true">&ldquo;</span>
+          <blockquote class="resena__texto">Siempre me agrada su servicio y comodidad. Lo recomiendo ampliamente.</blockquote>
+          <span class="resena__filete" aria-hidden="true"></span>
+          <figcaption class="resena__firma"><span class="resena__autor">Nancy Gomez</span><span class="resena__meta">Norte · Hace 2 meses</span></figcaption>
+        </figure>
+
+        <figure class="resena revelado">
+          <span class="resena__comilla" aria-hidden="true">&ldquo;</span>
+          <blockquote class="resena__texto">Mi manicura y mi gelish esta Hermoso gracias a ellas</blockquote>
+          <span class="resena__filete" aria-hidden="true"></span>
+          <figcaption class="resena__firma"><span class="resena__autor">Ana Karen</span><span class="resena__meta">Sur · Hace un año</span></figcaption>
+        </figure>
+
+        <figure class="resena revelado" style="transition-delay:.06s">
+          <span class="resena__comilla" aria-hidden="true">&ldquo;</span>
+          <blockquote class="resena__texto">Excelente Servicio, muy buenas manicuristas!!</blockquote>
+          <span class="resena__filete" aria-hidden="true"></span>
+          <figcaption class="resena__firma"><span class="resena__autor">TRAVEL PASSPORT</span><span class="resena__meta">Norte · 3 semanas atrás</span></figcaption>
+        </figure>
+
+        <figure class="resena revelado">
+          <span class="resena__comilla" aria-hidden="true">&ldquo;</span>
+          <blockquote class="resena__texto">Diseños super cutes y bonitos fueron muy rapidas en su trabajo</blockquote>
+          <span class="resena__filete" aria-hidden="true"></span>
+          <figcaption class="resena__firma"><span class="resena__autor">Anahi Ramirez</span><span class="resena__meta">Sur · Hace 4 meses</span></figcaption>
+        </figure>
+
+        <figure class="resena revelado" style="transition-delay:.06s">
+          <span class="resena__comilla" aria-hidden="true">&ldquo;</span>
+          <blockquote class="resena__texto">Ambiente agradable con las manicuristas</blockquote>
+          <span class="resena__filete" aria-hidden="true"></span>
+          <figcaption class="resena__firma"><span class="resena__autor">rafael garcia</span><span class="resena__meta">Norte · Hace un año</span></figcaption>
+        </figure>
+      </div>
+
+      <div class="resenas__cierre revelado" style="transition-delay:.1s">
+        <p class="resenas__invitacion">¿Te reservamos un lugar?</p>
+        <button class="boton-mag" type="button">Apartar mi lugar</button>
+      </div>
+    </div>
+
+  </div>
+</section>
+
+<script>
+// Revelado al entrar en pantalla — equivalente al componente TextoRevelado.
+const reducido = matchMedia('(prefers-reduced-motion: reduce)').matches;
+if (reducido) {
+  document.querySelectorAll('.revelado').forEach(el => el.classList.add('revelado--on'));
+} else {
+  const obs = new IntersectionObserver(entradas => {
+    entradas.forEach(e => { if (e.isIntersecting) { e.target.classList.add('revelado--on'); obs.unobserve(e.target); } });
+  }, { threshold: 0.18 });
+  document.querySelectorAll('.revelado').forEach(el => obs.observe(el));
+
+  // Cifra que sube y aro que se traza, al entrar la sección.
+  const seccion = document.querySelector('.resenas');
+  const cifra = document.getElementById('cifra');
+  const aro = document.getElementById('aro');
+  const largo = aro.getTotalLength();
+  aro.style.strokeDasharray = largo;
+  aro.style.strokeDashoffset = largo;
+
+  const sello = new IntersectionObserver(entradas => {
+    if (!entradas[0].isIntersecting) return;
+    sello.disconnect();
+
+    aro.style.transition = 'stroke-dashoffset 1.8s cubic-bezier(.45,0,.15,1)';
+    aro.style.strokeDashoffset = 0;
+
+    const t0 = performance.now(), destino = 4.1, ms = 1500;
+    (function paso(t) {
+      const p = Math.min((t - t0) / ms, 1);
+      cifra.textContent = (destino * (1 - Math.pow(1 - p, 3))).toFixed(1);
+      if (p < 1) requestAnimationFrame(paso);
+    })(t0);
+  }, { threshold: 0.25 });
+  sello.observe(seccion);
+}
+</script>
+</body>
+</html>

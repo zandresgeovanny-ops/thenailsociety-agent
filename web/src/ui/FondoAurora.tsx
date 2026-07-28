@@ -1,4 +1,4 @@
-// FondoAurora — auroras suaves de luz dorada/naranja que respiran detrás del
+// FondoAurora — auroras suaves de luz dorada y champán que respiran detrás del
 // contenido. Puramente decorativo (aria-hidden). Se congela con movimiento reducido.
 
 import "./FondoAurora.css";

@@ -1,14 +1,22 @@
 // Hero — primera impresión, estilo editorial de alta costura.
-// Rejilla asimétrica (CSS Grid): el texto vive a la izquierda, alineado a la
-// izquierda (nunca centrado). La mitad derecha la ocupa una escena 3D posicionada
-// de forma absoluta: un contenedor VACÍO (#hero-canvas-3d) listo para incrustar
-// el <canvas> de Three.js con la mano cuyas uñas se revelan al hacer scroll.
+// Dos bloques dentro de una rejilla CSS: a la izquierda el TEXTO, a la derecha
+// el MODELO 3D (la mano). Al hacer scroll se produce un "intercambio de
+// posiciones": el modelo se desplaza en X hacia la izquierda PASANDO POR DETRÁS
+// del texto (menor z-index), mientras el texto se desplaza a la derecha por
+// encima. Sincronizado al scroll con GSAP ScrollTrigger (scrub).
 
+import { useRef } from "react";
+import { useGSAP } from "@gsap/react";
+import gsap from "gsap";
+import { ScrollTrigger } from "gsap/ScrollTrigger";
 import BotonMagnetico from "../ui/BotonMagnetico";
 import TextoRevelado from "../ui/TextoRevelado";
 import FondoAurora from "../ui/FondoAurora";
 import ManoHero from "../escena/ManoHero";
+import { prefiereMenosMovimiento } from "../lib/preferencias";
 import "./Hero.css";
+
+gsap.registerPlugin(ScrollTrigger, useGSAP);
 
 interface Props {
   alReservar: () => void;
@@ -16,8 +24,56 @@ interface Props {
 }
 
 export default function Hero({ alReservar, alVerServicios }: Props) {
+  const seccion = useRef<HTMLElement>(null);
+  const bloqueTexto = useRef<HTMLDivElement>(null);
+  const bloqueModelo = useRef<HTMLDivElement>(null);
+
+  // Intercambio de posiciones al hacer scroll por el hero. scrub: true → sigue
+  // el desplazamiento del usuario de forma continua. Se omite si pidió menos
+  // movimiento o en pantallas apiladas (móvil), donde el swap en X no aplica.
+  useGSAP(
+    () => {
+      // Respetar accesibilidad: sin animación si el sistema pide menos movimiento.
+      if (prefiereMenosMovimiento()) return;
+
+      // matchMedia gatea por ancho y limpia solo al cambiar de rango (o al
+      // desmontar). El swap en X solo tiene sentido en escritorio (>=981px);
+      // en móvil el CSS apila y anula transform con !important.
+      const mm = gsap.matchMedia();
+      mm.add("(min-width: 981px)", () => {
+        const tl = gsap.timeline({
+          scrollTrigger: {
+            trigger: seccion.current,
+            start: "top top",
+            // Rango FIJO de una pantalla de scroll. No depende de medir el alto
+            // de la sección (que aún es 0 cuando el Canvas 3D no ha asentado el
+            // layout) — así el swap tiene rango válido desde el primer frame.
+            end: "+=100%",
+            scrub: true,
+            invalidateOnRefresh: true,
+          },
+        });
+        // Texto se va a la derecha (queda por encima); modelo a la izquierda
+        // pasando por detrás (menor z-index en el CSS).
+        tl.to(bloqueTexto.current, { xPercent: 62, ease: "none" }, 0).to(
+          bloqueModelo.current,
+          { xPercent: -88, ease: "none" },
+          0,
+        );
+      });
+
+      // El Canvas 3D y las fuentes montan async y cambian el layout después de
+      // que ScrollTrigger midió: re-medimos una vez tras el load para afinar
+      // la posición de arranque (start).
+      const refrescar = () => ScrollTrigger.refresh();
+      window.addEventListener("load", refrescar);
+      return () => window.removeEventListener("load", refrescar);
+    },
+    { scope: seccion },
+  );
+
   return (
-    <section className="hero" id="top">
+    <section className="hero" id="top" ref={seccion}>
       <FondoAurora variante="claro" />
 
       {/* Recursos de revista: etiqueta vertical al borde y número índice de fondo */}
@@ -26,30 +82,34 @@ export default function Hero({ alReservar, alVerServicios }: Props) {
       </span>
       <span className="hero__indice" aria-hidden="true">01</span>
 
-      {/* Rejilla asimétrica: columna de texto ancha a la izquierda, aire a la derecha */}
       <div className="hero__grid contenedor">
-        <div className="hero__texto">
+        {/* ── Bloque IZQUIERDO: texto (siempre por encima en el swap) ── */}
+        <div className="hero__bloque hero__bloque--texto" ref={bloqueTexto}>
+          {/* Todo el copy de aquí abajo sale del vocabulario real de la marca
+              (knowledge/thenailsociety_brand_voice.md): "sofisticado",
+              "consentirte como mereces", "un momento para ti", "agenda tu
+              cita". Nada inventado. */}
           <TextoRevelado como="span" className="hero__kicker">
             <span className="hero__regla" aria-hidden="true" />
-            Nail Society — belleza de autor
+            Nail spa · Aguascalientes
           </TextoRevelado>
 
           <TextoRevelado como="h1" className="hero__titulo" retraso={0.08}>
-            La manicura
+            Relájate y consiéntete
             <br />
-            como <em>alta costura</em>.
+            como <em>mereces</em>.
           </TextoRevelado>
 
           <TextoRevelado como="p" className="hero__sub" retraso={0.16}>
-            Manicura de autor donde cada uña es una pieza única. Reserva en
-            segundos con nuestras especialistas, en las sucursales Norte y Sur
-            de Aguascalientes.
+            Uñas, spa, faciales y podología en el lugar más sofisticado de
+            Aguascalientes. Dos sucursales, Norte y Sur, y 37 servicios para
+            darte un momento para ti.
           </TextoRevelado>
 
           <TextoRevelado className="hero__acciones" retraso={0.24}>
-            <BotonMagnetico onClick={alReservar}>Reservar mi cita</BotonMagnetico>
+            <BotonMagnetico onClick={alReservar}>Agendar mi cita</BotonMagnetico>
             <BotonMagnetico variante="contorno" onClick={alVerServicios}>
-              Ver servicios
+              Ver la carta
             </BotonMagnetico>
           </TextoRevelado>
 
@@ -70,18 +130,13 @@ export default function Hero({ alReservar, alVerServicios }: Props) {
             </a>
           </TextoRevelado>
         </div>
-      </div>
 
-      {/*
-        Escenario 3D — contenedor VACÍO posicionado en el lado derecho.
-        Aquí se monta el <canvas> de Three.js (mano + uñas). El marco dorado y el
-        fondo de estudio están pensados para que la mano resalte; el <canvas> se
-        dibuja encima y tapa el placeholder cuando llegue el modelo.
-      */}
-      <div className="hero__escena" id="hero-canvas-3d">
-        <div className="hero__escena-marco">
-          <ManoHero />
-          <span className="hero__escena-hint">The Nail Society — 3D</span>
+        {/* ── Bloque DERECHO: modelo 3D (pasa por detrás en el swap) ── */}
+        <div className="hero__bloque hero__bloque--modelo" ref={bloqueModelo}>
+          <div className="hero__escena-marco">
+            <ManoHero />
+            <span className="hero__escena-hint">Modelo: deep3dstudio · CC-BY-NC</span>
+          </div>
         </div>
       </div>
 

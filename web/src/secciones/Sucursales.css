@@ -64,7 +64,7 @@
   margin-top: 26px;
   background: none;
   border: none;
-  color: var(--naranja-texto);
+  color: var(--acento-texto);
   font-weight: 600;
   font-size: 15px;
   transition: transform 0.18s ease;
@@ -73,7 +73,7 @@
   transform: translateX(4px);
 }
 .sucursal__cta:focus-visible {
-  outline: 2px solid var(--naranja);
+  outline: 2px solid var(--acento);
   outline-offset: 3px;
   border-radius: 4px;
 }

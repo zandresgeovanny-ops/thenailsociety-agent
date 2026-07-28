@@ -1,0 +1,11 @@
+Model Information:
+* title:	Female hand
+* source:	https://sketchfab.com/3d-models/female-hand-3e9b8ad1942048e3a267d92fb1124d46
+* author:	deep3dstudio (https://sketchfab.com/deep3dstudio)
+
+Model License:
+* license type:	CC-BY-NC-4.0 (http://creativecommons.org/licenses/by-nc/4.0/)
+* requirements:	Author must be credited. No commercial use.
+
+If you use this 3D model in your project be sure to copy paste this credit wherever you share it:
+This work is based on "Female hand" (https://sketchfab.com/3d-models/female-hand-3e9b8ad1942048e3a267d92fb1124d46) by deep3dstudio (https://sketchfab.com/deep3dstudio) licensed under CC-BY-NC-4.0 (http://creativecommons.org/licenses/by-nc/4.0/)

@@ -16,14 +16,17 @@
   will-change: transform;
 }
 
-/* Sólido: naranja de acción */
+/* Sólido: dorado de marca con tinta encima. El dorado NO admite texto blanco
+   (no llega a 4.5:1); con tinta oscura pasa AA de sobra y además se lee como
+   placa grabada, que es el registro de la marca. */
 .boton-mag--solido {
-  background: linear-gradient(135deg, var(--naranja), var(--naranja-hondo));
-  color: #fff;
-  box-shadow: 0 12px 30px rgba(232, 120, 44, 0.38);
+  background: linear-gradient(135deg, var(--acento-claro, #e0bd6f), var(--acento));
+  color: var(--acento-sobre);
+  box-shadow: 0 12px 30px rgba(var(--acento-rgb), 0.34);
 }
 .boton-mag--solido:hover {
-  box-shadow: 0 16px 40px rgba(232, 120, 44, 0.5);
+  background: linear-gradient(135deg, var(--acento), var(--acento-hondo));
+  box-shadow: 0 16px 40px rgba(var(--acento-rgb), 0.46);
 }
 
 /* Contorno: filete dorado sobre fondo transparente. El texto va en tinta/crema,
@@ -49,6 +52,6 @@
 }
 
 .boton-mag:focus-visible {
-  outline: 3px solid var(--naranja-texto);
+  outline: 3px solid var(--acento-texto);
   outline-offset: 3px;
 }

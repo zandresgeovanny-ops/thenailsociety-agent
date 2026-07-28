@@ -82,7 +82,7 @@
   font-weight: 700;
 }
 .reserva__paso.on .reserva__num {
-  background: var(--naranja);
+  background: var(--acento);
   color: #fff;
 }
 .reserva__paso.on {
@@ -124,8 +124,8 @@
   transform: translateY(-1px);
 }
 .opcion--on {
-  border-color: var(--naranja);
-  background: rgba(232, 120, 44, 0.06);
+  border-color: var(--acento);
+  background: rgba(var(--acento-rgb), 0.08);
 }
 .opcion__info {
   display: flex;
@@ -172,7 +172,7 @@
 }
 .reserva__label input:focus {
   outline: none;
-  border-color: var(--naranja);
+  border-color: var(--acento);
 }
 .reserva__slots {
   display: grid;
@@ -194,8 +194,8 @@
   border-color: var(--oro);
 }
 .slot--on {
-  background: var(--naranja);
-  border-color: var(--naranja);
+  background: var(--acento);
+  border-color: var(--acento);
   color: #fff;
 }
 
@@ -283,7 +283,7 @@
   place-items: center;
   font-size: 38px;
   color: #fff;
-  background: linear-gradient(135deg, var(--naranja), var(--naranja-hondo));
+  background: linear-gradient(135deg, var(--acento), var(--acento-hondo));
 }
 .reserva__exito h3 {
   font-size: 30px;

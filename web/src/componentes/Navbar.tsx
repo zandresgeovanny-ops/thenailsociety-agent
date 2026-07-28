@@ -1,5 +1,5 @@
 // Navbar — barra superior fija, minimalista. El logotipo es tipográfico
-// (serif) con un filete dorado. El CTA de reservar es el único naranja.
+// (serif) con un filete dorado. El CTA de reservar es el único sólido.
 
 import BotonMagnetico from "../ui/BotonMagnetico";
 import "./Navbar.css";
@@ -20,6 +20,7 @@ export default function Navbar({ alReservar }: Props) {
           <a href="#top">Inicio</a>
           <a href="#servicios">Servicios</a>
           <a href="#equipo">Equipo</a>
+          <a href="#resenas">Reseñas</a>
           <a href="#sucursales">Sucursales</a>
         </nav>
         <BotonMagnetico onClick={alReservar} className="navbar__cta">

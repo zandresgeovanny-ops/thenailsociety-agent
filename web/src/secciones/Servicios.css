@@ -78,7 +78,7 @@
   font-style: normal;
   font-size: 12px;
   font-weight: 600;
-  color: var(--naranja-texto);
+  color: var(--acento-texto);
   text-transform: uppercase;
   letter-spacing: 0.08em;
   margin-right: 4px;
@@ -86,7 +86,7 @@
 .servicio__reservar {
   background: none;
   border: none;
-  color: var(--naranja-texto);
+  color: var(--acento-texto);
   font-weight: 600;
   font-size: 14px;
   padding: 6px 4px;
@@ -96,7 +96,7 @@
   transform: translateX(3px);
 }
 .servicio__reservar:focus-visible {
-  outline: 2px solid var(--naranja-texto);
+  outline: 2px solid var(--acento-texto);
   outline-offset: 3px;
   border-radius: 4px;
 }

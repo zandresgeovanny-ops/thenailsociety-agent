@@ -1,7 +1,15 @@
 /* The Nail Society Spa — sistema de diseño
-   Paleta: blanco hueso + dorado como base, negro estructural, naranja de acento.
+   Paleta: blanco hueso + dorado como base, negro estructural. Sin colores
+   fuera de la familia marfil/oro/negro: la guía de marca describe un
+   "quiet luxury" neutro y cálido, y cualquier saturado lo rompe.
+
    Regla de contraste: el DORADO nunca es color de texto (no llega a 4.5:1);
-   vive en bordes, filetes, iconos y superficies. El naranja de texto va oscurecido. */
+   vive en bordes, filetes, iconos y superficies. Cuando hace falta dorado
+   legible se usa la variante bronce --oro-texto, que sí pasa AA.
+
+   Regla de plantilla: las secciones no pintan con colores crudos, piden los
+   tokens semánticos --acento*. Revender esta web a una barbería o una clínica
+   es reescribir ese bloque, nada más. */
 
 :root {
   /* Lienzo y superficies claras */
@@ -22,10 +30,15 @@
      sobre fondo claro — pasa contraste AA. Para etiquetas y detalles finos. */
   --oro-texto: #7a5f22;
 
-  /* Naranja — acento de acción (CTA, estado activo, badges) */
-  --naranja: #e8782c;
-  --naranja-texto: #b8500f; /* versión oscurecida, apta como texto sobre claro */
-  --naranja-hondo: #c85a10;
+  /* ── Acento de acción (CTA, estado activo, badges) ──────────────────
+     ÚNICO bloque que se toca al revender la plantilla a otro vertical.
+     En The Nail Society el acento es el propio dorado de marca. */
+  --acento: #c9a24d; /* fondo de botón sólido, filetes, badges */
+  --acento-claro: #e0bd6f; /* arranque de degradado, brillos */
+  --acento-hondo: #a67c2e; /* hover y cierre de degradado */
+  --acento-texto: #7a5f22; /* bronce: la variante legible sobre fondo claro (AA) */
+  --acento-sobre: #171310; /* tinta que va ENCIMA del acento sólido */
+  --acento-rgb: 201, 162, 77; /* para sombras y velos con alpha */
 
   /* Tinta / texto */
   --tinta: #1a1a1a;
@@ -71,7 +84,10 @@ body {
   background: var(--hueso);
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
-  overflow-x: hidden;
+  /* `clip` evita el desborde horizontal SIN convertir el body en contenedor
+     de scroll (con `hidden`, overflow-y pasa a `auto` y rompe la medición de
+     ScrollTrigger). Deja documentElement como único scroller. */
+  overflow-x: clip;
 }
 
 h1,
@@ -104,9 +120,10 @@ img {
   display: block;
 }
 
+/* Selección: tinta sobre dorado. Blanco sobre dorado no pasa contraste. */
 ::selection {
-  background: var(--naranja);
-  color: #fff;
+  background: var(--acento);
+  color: var(--acento-sobre);
 }
 
 /* Contenedor centrado */
@@ -121,5 +138,5 @@ img {
   letter-spacing: 0.28em;
   text-transform: uppercase;
   font-weight: 600;
-  color: var(--naranja-texto);
+  color: var(--acento-texto);
 }

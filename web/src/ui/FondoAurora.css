@@ -27,7 +27,7 @@
   height: 40vw;
   right: -6vw;
   top: 12vw;
-  background: radial-gradient(circle, rgba(232, 120, 44, 0.32), transparent 66%);
+  background: radial-gradient(circle, rgba(186, 146, 86, 0.34), transparent 66%);
   animation: flotarB 20s ease-in-out infinite;
 }
 .aurora--claro .aurora__mancha.c {
@@ -52,7 +52,7 @@
   height: 38vw;
   right: -8vw;
   bottom: -10vw;
-  background: radial-gradient(circle, rgba(232, 120, 44, 0.3), transparent 64%);
+  background: radial-gradient(circle, rgba(186, 146, 86, 0.32), transparent 64%);
   animation: flotarB 22s ease-in-out infinite;
 }
 .aurora--oscuro .aurora__mancha.c {

@@ -4,7 +4,20 @@
 
 import { useEffect, useState } from "react";
 
-/** True si el sistema pide movimiento reducido (accesibilidad). */
+/**
+ * Lectura puntual (NO reactiva, NO es un hook) de la preferencia de movimiento
+ * reducido. Úsala fuera del render de React: callbacks de GSAP, código de
+ * Three.js, inicializaciones a nivel de módulo. Para condicionar el render de
+ * un componente usa el hook `usaMovimientoReducido`.
+ */
+export function prefiereMenosMovimiento(): boolean {
+  return (
+    typeof window !== "undefined" &&
+    window.matchMedia?.("(prefers-reduced-motion: reduce)").matches === true
+  );
+}
+
+/** True si el sistema pide movimiento reducido (accesibilidad). Hook reactivo. */
 export function usaMovimientoReducido(): boolean {
   const [reducido, setReducido] = useState(false);
 

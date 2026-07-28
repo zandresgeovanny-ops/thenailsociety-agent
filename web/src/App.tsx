@@ -9,6 +9,7 @@ import Footer from "./componentes/Footer";
 import Hero from "./secciones/Hero";
 import Servicios from "./secciones/Servicios";
 import Equipo from "./secciones/Equipo";
+import Resenas from "./secciones/Resenas";
 import Sucursales from "./secciones/Sucursales";
 import Reserva from "./secciones/Reserva";
 
@@ -37,6 +38,9 @@ export default function App() {
         <Hero alReservar={irAReserva} alVerServicios={() => irA("servicios")} />
         <Servicios alReservarServicio={reservarServicio} />
         <Equipo />
+        {/* La prueba social va después de conocer al equipo y antes de decir
+            dónde estamos: primero convences, luego indicas el camino. */}
+        <Resenas alReservar={irAReserva} />
         <Sucursales alReservar={irAReserva} />
         <Reserva ref={reservaRef} servicioSugeridoId={servicioSugerido} />
       </main>
