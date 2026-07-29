@@ -153,9 +153,9 @@ _PAGINA_LOGIN = """<!DOCTYPE html>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <title>The Nail Society Spa · Iniciar sesión</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Playfair+Display:wght@600;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Cormorant+Garamond:ital,wght@0,500;0,600;0,700;1,400;1,600&display=swap" rel="stylesheet">
 <style>
-  :root{--mag:#e8782c;--mag-2:#c85a10;--oro:#c9a24d;--tinta:#221d15;--gris:#71685a;--linea:#ece2cd;--panel:#ffffff;--bg:#faf6ee}
+  :root{--mag:#c9a24d;--mag-2:#a67c2e;--oro:#c9a24d;--tinta:#221d15;--gris:#71685a;--linea:#ece2cd;--panel:#ffffff;--bg:#faf6ee}
   *{box-sizing:border-box}
   body{margin:0;min-height:100vh;display:grid;place-items:center;font-family:'Inter',system-ui,sans-serif;color:var(--tinta);
     background:radial-gradient(720px 420px at 50% -10%, rgba(201,162,77,.20), transparent 60%), var(--bg)}

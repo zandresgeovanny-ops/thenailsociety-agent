@@ -373,31 +373,53 @@ _PAGINA_HTML = """<!DOCTYPE html>
 <title>The Nail Society Spa · Panel</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Playfair+Display:wght@600;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Cormorant+Garamond:ital,wght@0,500;0,600;0,700;1,400;1,600&display=swap" rel="stylesheet">
 <style>
   :root{
-    /* Marca The Nail Society: BLANCO y DORADO predominan; el negro va solo en el
-       texto y el naranja solo en el botón de acción principal (toques mínimos).
-       El dorado, para que sirva como texto sobre blanco, se usa oscuro (bronce). */
+    /* Mismos tokens que la web pública (web/src/index.css). El panel y la web
+       tienen que verse de la misma casa: la empleada abre las dos el mismo día.
+
+       Regla de contraste: el dorado NUNCA es color de texto. Vive en filetes,
+       bordes y superficies. Cuando hace falta dorado legible se usa el bronce
+       --acento-texto, que sí pasa AA sobre fondo claro. */
     --oro:#c9a24d; --oro-claro:#e8cf8f; --oro-hondo:#a67c2e;
-    --naranja:#e8782c; --naranja-2:#c85a10;
-    /* Aliases: el panel se construyó con --rosa*; en tema claro son superficie clara
-       y acento en oro oscuro (legible sobre blanco). */
+
+    /* Acento de acción: el dorado de marca. Antes era naranja, que no existe
+       en la guía. Sobre dorado sólido el texto va en tinta, nunca en blanco. */
+    --acento:#c9a24d; --acento-claro:#e0bd6f; --acento-hondo:#a67c2e;
+    --acento-texto:#7a5f22; --acento-sobre:#171310; --acento-rgb:201,162,77;
+    /* Compatibilidad: el panel se escribió con --naranja*; se mantienen los
+       nombres apuntando al acento nuevo para no reescribir 1600 líneas. */
+    --naranja:#c9a24d; --naranja-2:#a67c2e;
+
+    /* Aliases heredados (--rosa*): superficie clara y acento en bronce. */
     --rosa:#8a6a2e; --rosa-2:#7a5f22; --rosa-suave:#f7f0df; --rosa-borde:#e2d2a3;
-    --tinta:#221d15; --gris:#71685a; --bg:#faf6ee; --panel:#ffffff; --linea:#ece2cd;
+
+    --tinta:#1a1a1a; --gris:#6b6560; --bg:#f7f4ee; --panel:#ffffff; --linea:#e6ded1;
     --ok:#1f9d6b; --warn:#c98a12; --bad:#d84a4a; --info:#3f7fd6;
-    --sombra:0 8px 24px rgba(120,95,40,.10);
+    --sombra:0 8px 24px rgba(20,16,10,.08);
+    --serif:'Cormorant Garamond',Georgia,serif;
   }
   *{box-sizing:border-box}
   html,body{margin:0}
   body{
     font-family:'Inter',system-ui,sans-serif; color:var(--tinta);
+    /* Dos halos dorados y una trama de damasco muy tenue: el mismo recurso
+       que usan el hero y la sección de reseñas en la web pública. */
     background:
       radial-gradient(1200px 600px at 100% -10%, rgba(201,162,77,.15) 0%, transparent 55%),
-      radial-gradient(900px 500px at -10% 0%, rgba(232,120,44,.10) 0%, transparent 50%),
+      radial-gradient(900px 500px at -10% 0%, rgba(201,162,77,.09) 0%, transparent 50%),
       var(--bg);
     min-height:100vh;
   }
+  body::before{
+    content:""; position:fixed; inset:0; pointer-events:none; z-index:0; opacity:.4;
+    background-image:
+      radial-gradient(rgba(201,162,77,.22) 1px, transparent 1px),
+      radial-gradient(rgba(201,162,77,.13) 1px, transparent 1px);
+    background-size:26px 26px, 26px 26px; background-position:0 0, 13px 13px;
+  }
+  header, main{position:relative; z-index:1}
   header{
     position:sticky; top:0; z-index:20; backdrop-filter:saturate(1.2) blur(8px);
     background:rgba(255,255,255,.85); border-bottom:1px solid var(--linea);
@@ -408,7 +430,7 @@ _PAGINA_HTML = """<!DOCTYPE html>
     width:46px; height:46px; border-radius:50%;
     box-shadow:0 0 0 1px var(--linea), 0 6px 16px rgba(201,162,77,.3); animation:pop .5s ease both;
   }
-  .marca h1{font-family:'Playfair Display',serif; font-size:20px; margin:0; line-height:1}
+  .marca h1{font-family:var(--serif); font-size:20px; margin:0; line-height:1}
   .marca span{font-size:12px; color:var(--gris)}
   .vivo{margin-left:auto; display:flex; align-items:center; gap:8px; font-size:12px; color:var(--gris)}
   .usr{display:flex; align-items:center; gap:10px; font-size:13px}
@@ -427,18 +449,18 @@ _PAGINA_HTML = """<!DOCTYPE html>
   .navlink:hover{background:var(--rosa-suave)}
   .stats{display:grid; grid-template-columns:repeat(4,1fr); gap:16px; margin-bottom:24px}
   .stat{background:var(--panel); border:1px solid var(--linea); border-radius:18px; padding:18px 20px; box-shadow:var(--sombra); animation:rise .5s ease both; cursor:pointer}
-  .stat .n{font-size:30px; font-weight:700; font-family:'Playfair Display',serif; line-height:1}
+  .stat .n{font-size:30px; font-weight:700; font-family:var(--serif); line-height:1}
   .stat .l{font-size:12.5px; color:var(--gris); margin-top:6px; text-transform:uppercase; letter-spacing:.05em}
   .stat.hoy .n{color:var(--rosa)} .stat.pend .n{color:var(--warn)}
   .stat.conf .n{color:var(--ok)} .stat.tot .n{color:var(--info)}
   .barra{display:flex; align-items:center; gap:10px; margin-bottom:16px; flex-wrap:wrap}
-  .vtitulo{font-family:'Playfair Display',serif; font-size:20px; margin:0}
+  .vtitulo{font-family:var(--serif); font-size:20px; margin:0}
   .busqueda{margin-left:auto; padding:9px 14px; border:1px solid var(--linea); border-radius:11px; font-family:inherit; font-size:13.5px; min-width:min(280px,60vw); transition:border-color .15s; background:#fbf8f1; color:var(--tinta)}
   .busqueda::placeholder{color:#b0a691}
   .busqueda:focus{outline:none; border-color:var(--rosa)}
   .resumen-reg{display:flex; gap:14px; margin-bottom:16px; flex-wrap:wrap}
   .resumen-reg .pill{background:var(--rosa-suave); color:var(--rosa); border-radius:13px; padding:10px 18px; font-size:13.5px; font-weight:600; box-shadow:var(--sombra)}
-  .resumen-reg .pill b{font-family:'Playfair Display',serif; font-size:19px; margin-left:4px}
+  .resumen-reg .pill b{font-family:var(--serif); font-size:19px; margin-left:4px}
   .costo{font-weight:700; color:var(--rosa-2)}
   .tarjeta.grafica{padding:18px 20px 8px; margin-bottom:16px}
   .grafica-titulo{font-weight:600; color:var(--rosa-2); font-size:12px; text-transform:uppercase; letter-spacing:.05em; margin-bottom:6px}
@@ -470,7 +492,7 @@ _PAGINA_HTML = """<!DOCTYPE html>
   .b-no_show{background:#ece8f4; color:#5b4a8a}
   /* Badge de origen de la cita (web / whatsapp / panel) */
   .orig{display:inline-block; margin-left:6px; padding:2px 8px; border-radius:999px; font-size:10.5px; font-weight:700; letter-spacing:.03em; vertical-align:middle; border:1px solid transparent}
-  .o-web{background:rgba(232,120,44,.12); color:#b64f0e; border-color:rgba(232,120,44,.4)}
+  .o-web{background:rgba(201,162,77,.12); color:#7a5f22; border-color:rgba(201,162,77,.4)}
   .o-wa{background:rgba(31,157,107,.12); color:#137a52; border-color:rgba(31,157,107,.4)}
   .o-panel{background:rgba(201,162,77,.16); color:var(--rosa-2); border-color:rgba(201,162,77,.5)}
   .o-otro{background:#f0ece2; color:var(--gris); border-color:var(--linea)}
@@ -493,7 +515,7 @@ _PAGINA_HTML = """<!DOCTYPE html>
   .overlay{position:fixed; inset:0; background:rgba(60,48,24,.35); backdrop-filter:blur(2px); display:none; place-items:center; z-index:50; animation:fade .2s ease}
   .overlay.open{display:grid}
   .modal{background:var(--panel); border:1px solid var(--linea); border-radius:20px; padding:26px; width:min(420px,92vw); box-shadow:0 24px 60px rgba(90,70,30,.22); animation:rise .25s ease}
-  .modal h3{font-family:'Playfair Display',serif; margin:0 0 4px}
+  .modal h3{font-family:var(--serif); margin:0 0 4px}
   .modal p{margin:0 0 16px; color:var(--gris); font-size:13.5px}
   .modal label{font-size:13px; font-weight:600; color:var(--gris); display:block; margin:0 0 6px}
   .modal input[type=text], .modal input[type=time], .modal input[type=password]{width:100%; padding:11px 13px; border:1px solid var(--linea); border-radius:11px; font-family:inherit; font-size:14px; margin-bottom:14px; background:#fbf8f1; color:var(--tinta)}

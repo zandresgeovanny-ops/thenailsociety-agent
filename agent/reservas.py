@@ -204,7 +204,7 @@ _PAGINA_HTML = """<!DOCTYPE html>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>The Nail Society Spa · Reservar cita</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Playfair+Display:wght@600;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Cormorant+Garamond:ital,wght@0,500;0,600;0,700;1,400;1,600&display=swap" rel="stylesheet">
 <style>
   :root{--rosa:#e8308f;--rosa-2:#c41f73;--rosa-suave:#2a1830;--tinta:#f1ebf5;--gris:#9d92aa;--panel:#221c2b;--linea:#352c40;--ok:#2ecb8f;--bg:#141019;--sombra:0 10px 30px rgba(0,0,0,.45)}
   *{box-sizing:border-box}
@@ -213,14 +213,14 @@ _PAGINA_HTML = """<!DOCTYPE html>
   .wrap{max-width:560px;margin:0 auto;padding:20px 16px 40px}
   .head{text-align:center;margin:14px 0 22px}
   .logo{width:88px;height:88px;border-radius:50%;display:inline-block;box-shadow:0 0 0 1px var(--linea),0 12px 32px rgba(232,48,143,.28);animation:pop .5s ease both}
-  .head h1{font-family:'Playfair Display',serif;font-size:24px;margin:12px 0 2px}
+  .head h1{font-family:var(--serif);font-size:24px;margin:12px 0 2px}
   .head p{color:var(--gris);margin:0;font-size:14px}
   /* Pasos */
   .pasos{display:flex;justify-content:center;gap:8px;margin:18px 0 24px}
   .paso{width:30px;height:5px;border-radius:99px;background:var(--linea);transition:.3s}
   .paso.on{background:linear-gradient(90deg,var(--rosa),var(--rosa-2))}
   .panel{background:var(--panel);border:1px solid var(--linea);border-radius:20px;box-shadow:var(--sombra);padding:20px;animation:rise .35s ease both}
-  .panel h2{font-family:'Playfair Display',serif;font-size:19px;margin:0 0 4px}
+  .panel h2{font-family:var(--serif);font-size:19px;margin:0 0 4px}
   .panel .sub{color:var(--gris);font-size:13.5px;margin:0 0 16px}
   /* Tarjetas seleccionables */
   .opt{border:1.5px solid var(--linea);border-radius:14px;padding:14px 16px;margin-bottom:10px;cursor:pointer;display:flex;align-items:center;gap:12px;transition:.15s;background:#1d1825}
