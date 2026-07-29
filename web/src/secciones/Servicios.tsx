@@ -39,7 +39,7 @@ export default function Servicios({ alReservarServicio }: Props) {
       <div className="contenedor">
         <div className="servicios__cabecera">
           <TextoRevelado como="span" className="kicker">
-            Carta de servicios
+            Catálogo de servicios
           </TextoRevelado>
           <TextoRevelado como="h2" className="servicios__titulo" retraso={0.06}>
             Todo lo que tus manos merecen

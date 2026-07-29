@@ -53,7 +53,10 @@ export default function Hero({ alReservar, alVerServicios }: Props) {
   );
 
   return (
-    <section className="hero" id="top" ref={seccion}>
+    // `seccion-oscura` no es decorativa: es la que le dice a BotonMagnetico
+    // que pinte el botón de contorno en crema. Sin ella el texto sale en
+    // tinta sobre negro y desaparece.
+    <section className="hero seccion-oscura" id="top" ref={seccion}>
       {/* Capas decorativas: trama de damasco y marco de sello */}
       <div className="hero__trama" aria-hidden="true" />
       <div className="hero__marco" aria-hidden="true" />
@@ -84,7 +87,7 @@ export default function Hero({ alReservar, alVerServicios }: Props) {
         <TextoRevelado className="hero__acciones" retraso={0.32}>
           <BotonMagnetico onClick={alReservar}>Agendar mi cita</BotonMagnetico>
           <BotonMagnetico variante="contorno" onClick={alVerServicios}>
-            Ver la carta
+            Ver el catálogo
           </BotonMagnetico>
         </TextoRevelado>
 
