@@ -11,6 +11,7 @@ final lo garantiza un constraint en la base de datos.
 """
 
 import uuid
+import asyncio
 import logging
 from datetime import datetime, timedelta
 
@@ -28,6 +29,68 @@ from agent.branding import aplicar_marca
 
 logger = logging.getLogger("agentkit")
 router = APIRouter(prefix="/reservar")
+
+# Días y meses en español, para redactar la confirmación sin depender del
+# locale del servidor (en Railway el contenedor viene en inglés).
+_DIAS = ("lunes", "martes", "miércoles", "jueves", "viernes", "sábado", "domingo")
+_MESES = ("enero", "febrero", "marzo", "abril", "mayo", "junio", "julio",
+          "agosto", "septiembre", "octubre", "noviembre", "diciembre")
+
+# Lada por defecto para números escritos sin país. El salón es de
+# Aguascalientes, así que un número local de 10 dígitos es mexicano.
+LADA_POR_DEFECTO = "+52"
+
+
+def _normalizar_telefono(crudo: str) -> str | None:
+    """
+    Deja el teléfono en formato E.164 (+52XXXXXXXXXX), que es lo que exige
+    WhatsApp. La clienta escribe como quiere: "449 273 3769", "(449) 273-3769"
+    o "+52 449 273 3769". Devuelve None si no parece un número válido.
+    """
+    digitos = "".join(c for c in crudo if c.isdigit())
+    if crudo.strip().startswith("+"):
+        return f"+{digitos}" if len(digitos) >= 11 else None
+    if len(digitos) == 10:  # número local
+        return f"{LADA_POR_DEFECTO}{digitos}"
+    if len(digitos) == 12 and digitos.startswith("52"):
+        return f"+{digitos}"
+    return None
+
+
+def _texto_confirmacion(nombre: str, servicio: str, cuando: datetime,
+                        sucursal: str | None) -> str:
+    """Mensaje de confirmación, con la voz de la marca."""
+    dia = _DIAS[cuando.weekday()]
+    fecha = f"{dia} {cuando.day} de {_MESES[cuando.month - 1]}"
+    hora = cuando.strftime("%H:%M")
+    donde = f"\nSucursal {sucursal}." if sucursal else ""
+    return (
+        f"¡Hola {nombre}! Tu cita en The Nail Society quedó confirmada. ✨\n\n"
+        f"{servicio}\n"
+        f"{fecha} a las {hora}.{donde}\n\n"
+        f"Si necesitas moverla o cancelarla, respóndeme por aquí y lo vemos.\n"
+        f"Te esperamos. 🤍"
+    )
+
+
+async def _enviar_confirmacion(telefono: str, mensaje: str) -> None:
+    """
+    Manda la confirmación por WhatsApp.
+
+    Va aislado a propósito: si Twilio falla o el número no es válido, la cita
+    YA está guardada y la clienta ya vio su confirmación en pantalla. Un fallo
+    de mensajería nunca debe tumbar una reserva.
+    """
+    try:
+        from agent.providers import obtener_proveedor
+
+        proveedor = obtener_proveedor()
+        if await proveedor.enviar_mensaje(telefono, mensaje):
+            logger.info(f"Confirmación enviada a {telefono}")
+        else:
+            logger.warning(f"No se pudo enviar la confirmación a {telefono}")
+    except Exception as e:
+        logger.error(f"Error enviando la confirmación de reserva: {e}")
 
 
 @router.get("/api/servicios")
@@ -104,6 +167,26 @@ async def api_reservar(payload: dict, request: Request):
     except IntegrityError:
         # El constraint de no-solapamiento rechazó la cita (alguien tomó el turno)
         raise HTTPException(status_code=409, detail="Ese horario acaba de ocuparse, elige otro.")
+
+    # ── Confirmación por WhatsApp ────────────────────────────────────────
+    # Se manda en segundo plano: la clienta no debe esperar a que Twilio
+    # responda para ver su confirmación en pantalla.
+    telefono_e164 = _normalizar_telefono(telefono)
+    if telefono_e164:
+        nombre_sucursal = None
+        if sucursal_id:
+            sucursales = await listar_sucursales()
+            nombre_sucursal = next(
+                (s["nombre"] for s in sucursales if str(s["id"]) == str(sucursal_id)), None
+            )
+        asyncio.create_task(
+            _enviar_confirmacion(
+                telefono_e164,
+                _texto_confirmacion(nombre, servicio["nombre"], inicia_en, nombre_sucursal),
+            )
+        )
+    else:
+        logger.warning(f"Teléfono no reconocido, sin confirmación: {telefono!r}")
 
     return {"ok": True, "mensaje": f"¡Listo {nombre}! Tu cita de {servicio['nombre']} quedó registrada."}
 
