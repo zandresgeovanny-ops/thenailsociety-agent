@@ -180,20 +180,23 @@ def _parse_servicio(payload: dict):
 
 @router.get("/api/servicios/gestion")
 async def api_servicios_gestion(user: dict = Depends(requiere_panel)):
-    _solo_admin(user)
+    # Catálogo abierto a empleadas: son ellas quienes conocen precios y
+    # duraciones reales. Empleadas y configuración siguen siendo del admin.
     return await gestionar_servicios()
 
 
 @router.post("/api/servicios")
 async def api_crear_servicio(payload: dict, user: dict = Depends(requiere_panel)):
-    _solo_admin(user)
+    # Catálogo abierto a empleadas: son ellas quienes conocen precios y
+    # duraciones reales. Empleadas y configuración siguen siendo del admin.
     nombre, categoria, duracion, precio, activo = _parse_servicio(payload)
     return await guardar_servicio(None, nombre, categoria, duracion, precio, activo)
 
 
 @router.post("/api/servicios/{servicio_id}")
 async def api_editar_servicio(servicio_id: str, payload: dict, user: dict = Depends(requiere_panel)):
-    _solo_admin(user)
+    # Catálogo abierto a empleadas: son ellas quienes conocen precios y
+    # duraciones reales. Empleadas y configuración siguen siendo del admin.
     nombre, categoria, duracion, precio, activo = _parse_servicio(payload)
     if await guardar_servicio(servicio_id, nombre, categoria, duracion, precio, activo) is None:
         raise HTTPException(status_code=404, detail="Servicio no encontrado")
@@ -202,7 +205,8 @@ async def api_editar_servicio(servicio_id: str, payload: dict, user: dict = Depe
 
 @router.post("/api/servicios/{servicio_id}/estado")
 async def api_servicio_estado(servicio_id: str, payload: dict, user: dict = Depends(requiere_panel)):
-    _solo_admin(user)
+    # Catálogo abierto a empleadas: son ellas quienes conocen precios y
+    # duraciones reales. Empleadas y configuración siguen siendo del admin.
     if not await set_servicio_activo(servicio_id, bool(payload.get("activo"))):
         raise HTTPException(status_code=404, detail="Servicio no encontrado")
     return {"ok": True}
@@ -555,17 +559,39 @@ _PAGINA_HTML = """<!DOCTYPE html>
   .ag-nav{padding:9px 14px; font-size:18px; line-height:1}
   .ag-fecha{min-width:auto; width:auto; margin:0}
   .ag-titulo{font-size:18px; text-transform:capitalize; margin:0 0 0 4px}
-  .ag-hint{margin-left:auto; font-size:12.5px; color:var(--gris)}
+  .ag-hint{margin-left:14px; font-size:12.5px; color:var(--gris)}
+  .ag-zoom{margin-left:auto; display:flex; align-items:center; gap:4px;
+    padding:3px; background:var(--panel); border:1px solid var(--linea); border-radius:999px}
+  .ag-zbtn{width:29px; height:29px; display:grid; place-items:center;
+    font-size:16px; line-height:1; font-weight:600; color:var(--tinta);
+    background:transparent; border:none; border-radius:50%; cursor:pointer;
+    transition:background .18s, color .18s}
+  .ag-zbtn:hover{background:var(--acento); color:var(--acento-sobre)}
+  .ag-zreset{font-size:13px}
+  .ag-znivel{min-width:42px; text-align:center; font-size:11.5px; font-weight:700;
+    font-variant-numeric:tabular-nums; color:var(--gris)}
   .ag-wrap{padding:0}
-  .ag-scroll{overflow:auto; max-height:74vh}
+  @media(max-width:720px){
+    .ag-hint{display:none}
+    .ag-zoom{margin-left:0}
+    .ag-col-cab,.ag-col{min-width:128px}
+  }
+  /* padding-top deja aire para que la etiqueta de la PRIMERA hora no se
+     corte contra el borde superior (va con translateY(-50%)). */
+  .ag-scroll{overflow:auto; max-height:74vh; padding-top:10px; scroll-behavior:smooth}
   .ag-grid{min-width:max-content}
   .ag-cab{display:flex; position:sticky; top:0; z-index:6; background:rgba(255,255,255,.94); backdrop-filter:blur(6px); border-bottom:1px solid var(--linea)}
-  .ag-gutter-cab{width:56px; flex:none}
+  .ag-gutter-cab{width:74px; flex:none}
   .ag-col-cab{flex:1; min-width:150px; padding:12px 10px; text-align:center; font-weight:700; font-size:13.5px; border-left:1px solid var(--linea); white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
   .ag-col-cab.sin{color:var(--gris); font-weight:600}
   .ag-cuerpo{display:flex; position:relative}
-  .ag-gutter{width:56px; flex:none; position:relative}
-  .ag-hl{position:absolute; right:8px; transform:translateY(-50%); font-size:11px; color:var(--gris); white-space:nowrap}
+  .ag-gutter{width:74px; flex:none; position:relative}
+  /* Etiqueta de hora: tabular para que las cifras no bailen, y con ancho
+     suficiente para "12:00 p.m." sin recortarse. */
+  .ag-hl{position:absolute; right:10px; transform:translateY(-50%);
+    font-size:11.5px; font-weight:600; font-variant-numeric:tabular-nums;
+    letter-spacing:.01em; color:var(--gris); white-space:nowrap;
+    background:var(--bg); padding:1px 3px; border-radius:4px}
   .ag-col{flex:1; min-width:150px; position:relative; border-left:1px solid var(--linea)}
   .ag-col.sin{background:rgba(201,162,77,.05)}
   .ag-linea{position:absolute; left:0; right:0; border-top:1px solid var(--linea); opacity:.5}
@@ -608,8 +634,8 @@ _PAGINA_HTML = """<!DOCTYPE html>
   <nav class="nav">
     <button class="navbtn activo" data-v="citas" onclick="verVista('citas')">📅 Citas</button>
     <button class="navbtn" data-v="agenda" onclick="verVista('agenda')">🗓️ Agenda</button>
-    <button class="navbtn" data-v="registro" onclick="verVista('registro')">📋 Registro</button>
-    <button class="navbtn oculto" id="navServicios" data-v="servicios" onclick="verVista('servicios')">💅 Servicios</button>
+    <button class="navbtn oculto" id="navRegistro" data-v="registro" onclick="verVista('registro')">📋 Registro</button>
+    <button class="navbtn" id="navServicios" data-v="servicios" onclick="verVista('servicios')">💅 Servicios</button>
     <button class="navbtn oculto" id="navEmpleadas" data-v="empleadas" onclick="verVista('empleadas')">👩 Empleadas</button>
     <button class="navbtn oculto" id="navConfig" data-v="config" onclick="verVista('config')">⚙️ Bot</button>
     <a class="navlink" href="/reservar" target="_blank" rel="noopener">Ver portal de clientas ↗</a>
@@ -652,7 +678,13 @@ _PAGINA_HTML = """<!DOCTYPE html>
       <button class="navbtn ag-nav" onclick="agendaDia(1)" title="Día siguiente">›</button>
       <button class="navbtn" onclick="agendaHoy()">Hoy</button>
       <h2 class="vtitulo ag-titulo" id="agendaTitulo"></h2>
-      <span class="ag-hint">✋ Arrastra una cita para reagendarla · toca para más opciones</span>
+      <div class="ag-zoom" role="group" aria-label="Zoom de la agenda">
+        <button class="ag-zbtn" onclick="agendaZoom(-1)" title="Alejar" aria-label="Alejar">−</button>
+        <span class="ag-znivel" id="agZoomNivel">100%</span>
+        <button class="ag-zbtn" onclick="agendaZoom(1)" title="Acercar" aria-label="Acercar">+</button>
+        <button class="ag-zbtn ag-zreset" onclick="agendaZoom(0)" title="Restablecer">↺</button>
+      </div>
+      <span class="ag-hint">✋ Arrastra una cita para reagendarla</span>
     </div>
     <div class="tarjeta ag-wrap">
       <div id="agendaScroll" class="ag-scroll"><div id="agendaGrid" class="ag-grid"></div></div>
@@ -1068,7 +1100,11 @@ async function cargar(forzar){
 // ════════════════════════════════════════════════════════════
 // Agenda: calendario por día con arrastrar-y-soltar para reagendar
 // ════════════════════════════════════════════════════════════
-const AG_INI = 8, AG_FIN = 21, AG_PX = 1.15, AG_SNAP = 15;   // 8am–9pm, 1.15px/min, ajuste a 15min
+const AG_INI = 8, AG_FIN = 21, AG_SNAP = 15;   // 8am–9pm, ajuste a 15 min
+// Zoom de la agenda: pixeles por minuto. Se guarda para que la empleada no
+// tenga que reajustarlo cada vez que abre el panel.
+const AG_PX_MIN = 0.7, AG_PX_MAX = 3.2;
+let AG_PX = parseFloat(localStorage.getItem("agendaZoom")) || 1.15;
 const _fmtTZ = new Intl.DateTimeFormat("en-CA",{timeZone:TZ,year:"numeric",month:"2-digit",day:"2-digit",hour:"2-digit",minute:"2-digit",hour12:false});
 function partesTZ(iso){
   const o = {};
@@ -1081,7 +1117,20 @@ function hm(s){ const [h,m]=s.split(":").map(Number); return h*60+(m||0); }
 function durCita(c){ return c.termina_en ? Math.max(15, Math.round((new Date(c.termina_en)-new Date(c.inicia_en))/60000)) : 60; }
 function hoyTZ(){ return new Date().toLocaleDateString("en-CA",{timeZone:TZ}); }
 
-async function abrirAgenda(){
+async function agendaZoom(dir){
+  // dir: 1 acercar, -1 alejar, 0 restablecer. Se limita al rango util:
+  // por debajo de 0.7 las citas cortas quedan ilegibles y por encima de
+  // 3.2 el dia no cabe en pantalla.
+  AG_PX = dir === 0 ? 1.15 : Math.min(AG_PX_MAX, Math.max(AG_PX_MIN, AG_PX + dir*0.25));
+  localStorage.setItem("agendaZoom", AG_PX);
+  const n = document.getElementById("agZoomNivel");
+  if(n) n.textContent = Math.round(AG_PX/1.15*100) + "%";
+  renderAgenda();
+}
+
+function abrirAgenda(){
+  const n = document.getElementById("agZoomNivel");
+  if(n) n.textContent = Math.round(AG_PX/1.15*100) + "%";
   const inp = document.getElementById("agendaFecha");
   if(!inp.value) inp.value = hoyTZ();
   // El admin necesita la lista de empleadas y sus turnos (para columnas y sombreado)
@@ -1619,7 +1668,7 @@ async function guardarPass(){
     document.getElementById("usrNombre").textContent = yo.nombre || "Usuaria";
     document.getElementById("usrRol").textContent = esAdmin ? "Administrador(a)" : "Empleada";
     if(esAdmin){
-      document.getElementById("navServicios").classList.remove("oculto");
+      document.getElementById("navRegistro").classList.remove("oculto");
       document.getElementById("navEmpleadas").classList.remove("oculto");
       document.getElementById("navConfig").classList.remove("oculto");
       document.getElementById("btnNuevaCita").classList.remove("oculto");
@@ -1627,7 +1676,9 @@ async function guardarPass(){
   }catch(e){ location.href = "/login"; return; }
   document.getElementById("tbody").innerHTML = Array.from({length:3}).map(()=>
     `<tr><td colspan="5"><div class="skel"></div></td></tr>`).join("");
-  if(esAdmin){ try{ empleados = await api("/empleados"); servicios = await api("/servicios"); }catch(e){ empleados = []; servicios = []; } }
+  // El catálogo lo usan todas; la lista de empleadas solo el admin.
+  try{ servicios = await api("/servicios"); }catch(e){ servicios = []; }
+  if(esAdmin){ try{ empleados = await api("/empleados"); }catch(e){ empleados = []; } }
   // Sucursales: si hay más de una, mostrar el filtro (Norte / Sur / todas)
   try{ sucursales = await api("/sucursales"); }catch(e){ sucursales = []; }
   if(sucursales.length > 1){
