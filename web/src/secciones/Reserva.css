@@ -307,3 +307,122 @@
     width: 12px;
   }
 }
+
+/* ── Buscador de servicios ───────────────────────────────────────────────
+   Con 37 servicios en el catálogo, el scroll es el mayor punto de abandono
+   del paso 0. El buscador filtra por nombre Y por categoría. */
+
+.buscador {
+  position: relative;
+  display: flex;
+  align-items: center;
+  margin-bottom: 14px;
+}
+
+.buscador__lupa {
+  position: absolute;
+  left: 18px;
+  display: grid;
+  place-items: center;
+  color: var(--acento-texto);
+  pointer-events: none;
+}
+
+.buscador__campo {
+  width: 100%;
+  padding: 15px 44px 15px 48px;
+  font-family: var(--sans);
+  font-size: 15px;
+  color: var(--tinta);
+  background: var(--blanco);
+  border: 1px solid var(--linea);
+  border-radius: 999px;
+  transition:
+    border-color 0.25s ease,
+    box-shadow 0.25s ease;
+}
+.buscador__campo::placeholder {
+  color: var(--gris-claro);
+}
+.buscador__campo:hover {
+  border-color: rgba(var(--acento-rgb), 0.5);
+}
+.buscador__campo:focus-visible {
+  outline: none;
+  border-color: var(--acento);
+  box-shadow: 0 0 0 3px rgba(var(--acento-rgb), 0.18);
+}
+/* Quita la "x" nativa de Chrome: usamos la nuestra, que sí combina */
+.buscador__campo::-webkit-search-cancel-button {
+  appearance: none;
+}
+
+.buscador__limpiar {
+  position: absolute;
+  right: 14px;
+  width: 26px;
+  height: 26px;
+  display: grid;
+  place-items: center;
+  font-size: 19px;
+  line-height: 1;
+  color: var(--gris);
+  background: transparent;
+  border: none;
+  border-radius: 50%;
+  transition:
+    background 0.2s ease,
+    color 0.2s ease;
+}
+.buscador__limpiar:hover {
+  color: var(--tinta);
+  background: var(--crema);
+}
+
+/* Atajos por categoría */
+.buscador__atajos {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+  margin-bottom: 18px;
+}
+
+.atajo {
+  padding: 7px 15px;
+  font-family: var(--sans);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: var(--tinta-suave);
+  background: transparent;
+  border: 1px solid var(--linea);
+  border-radius: 999px;
+  transition:
+    color 0.22s ease,
+    background 0.22s ease,
+    border-color 0.22s ease;
+}
+.atajo:hover {
+  color: var(--tinta);
+  border-color: rgba(var(--acento-rgb), 0.55);
+}
+/* Activo: dorado sólido con tinta encima (blanco sobre dorado no pasa AA) */
+.atajo.es-activo {
+  color: var(--acento-sobre);
+  background: var(--acento);
+  border-color: var(--acento);
+}
+
+@media (max-width: 560px) {
+  .buscador__campo {
+    padding: 13px 40px 13px 44px;
+    font-size: 14px;
+  }
+  .buscador__atajos {
+    gap: 6px;
+  }
+  .atajo {
+    padding: 6px 12px;
+    font-size: 11px;
+  }
+}

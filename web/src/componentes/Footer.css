@@ -78,3 +78,36 @@
     grid-template-columns: 1fr 1fr;
   }
 }
+
+/* Acceso al panel del equipo — discreto, bajo el nombre de la marca */
+.footer__panel {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  margin-top: 16px;
+  padding: 8px 16px;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  color: var(--crema);
+  border: 1px solid rgba(var(--acento-rgb), 0.42);
+  border-radius: 999px;
+  transition:
+    background 0.25s ease,
+    border-color 0.25s ease,
+    color 0.25s ease;
+}
+.footer__panel:hover {
+  color: var(--acento-sobre);
+  background: var(--acento);
+  border-color: var(--acento);
+}
+.footer__panel-icono {
+  display: grid;
+  place-items: center;
+  color: var(--acento-claro);
+  transition: color 0.25s ease;
+}
+.footer__panel:hover .footer__panel-icono {
+  color: var(--acento-sobre);
+}

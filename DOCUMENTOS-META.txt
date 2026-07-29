@@ -1,0 +1,165 @@
+===========================================================
+  QUE PEDIRLE A THE NAIL SOCIETY PARA ACTIVAR WHATSAPP
+  Verificacion de negocio con Meta
+  Preparado el 28 de julio de 2026
+===========================================================
+
+Sin esto, el WhatsApp automatico NO puede funcionar con
+clientas reales. Es el unico tramite que bloquea el
+proyecto, y tarda entre 1 y 5 dias habiles.
+
+Pidelo el mismo dia que firmen.
+
+
+-----------------------------------------------------------
+1. DOCUMENTOS (lo que tienen que mandarte)
+-----------------------------------------------------------
+
+[ ] CONSTANCIA DE SITUACION FISCAL DEL SAT
+    El documento clave en Mexico. Trae el nombre legal,
+    el RFC y el domicilio fiscal, que es justo lo que
+    Meta compara.
+    La descargan en sat.gob.mx con su RFC y contrasena,
+    o su contador se las manda en 5 minutos.
+    Que sea RECIENTE (menos de 3 meses).
+
+[ ] COMPROBANTE DE DOMICILIO
+    Recibo de luz, de agua o estado de cuenta bancario.
+    IMPORTANTE: la direccion tiene que coincidir EXACTO
+    con la de la constancia fiscal.
+    Menos de 3 meses de antiguedad.
+
+[ ] ACTA CONSTITUTIVA
+    Solo si el negocio esta dado de alta como sociedad
+    (S.A. de C.V., S. de R.L., etc.).
+    Si es persona fisica con actividad empresarial, no
+    aplica: basta con la constancia del SAT.
+
+
+-----------------------------------------------------------
+2. DATOS (lo que tienen que decirte)
+-----------------------------------------------------------
+
+[ ] NOMBRE LEGAL COMPLETO
+    Tal cual aparece en el SAT. Puede NO ser "The Nail
+    Society" — muchos salones facturan a nombre de una
+    persona o de otra razon social. Ese es el que vale.
+
+[ ] DOMICILIO FISCAL COMPLETO
+    Calle, numero, colonia, codigo postal, ciudad, estado.
+
+[ ] TELEFONO DEL NEGOCIO
+
+[ ] CORREO ELECTRONICO DEL NEGOCIO
+    Que sea uno al que tengan acceso: ahi llegan los
+    avisos de Meta.
+
+[ ] SITIO WEB
+    Ya lo tienen. Es la web que acabamos de publicar.
+
+
+-----------------------------------------------------------
+3. ACCESOS (lo que tienes que gestionar con ellas)
+-----------------------------------------------------------
+
+[ ] NUMERO DE TELEFONO PARA EL AGENTE
+    LEE ESTO CON CUIDADO. El numero que se registre en la
+    API deja de funcionar en la app normal de WhatsApp.
+    Es una via sin retorno mientras este registrado.
+
+    Recomendacion: que compren un chip NUEVO, solo para
+    esto. Asi el WhatsApp que ya usan a diario sigue
+    intacto y nadie se queda sin su herramienta.
+
+    El numero debe poder recibir un SMS o una llamada
+    para confirmar el codigo.
+
+[ ] CUENTA DE FACEBOOK BUSINESS
+    Si ya tienen uno (por su Instagram @thenailsociety_ags,
+    probablemente si), necesitas que te den acceso de
+    administrador.
+    Si no lo tienen, se crea nuevo.
+
+[ ] ACCESO AL INSTAGRAM
+    No es obligatorio, pero ayuda: vincularlo le da a Meta
+    senales de que el negocio es real y acelera la
+    aprobacion.
+
+
+-----------------------------------------------------------
+4. LA REGLA QUE TUMBA LA MAYORIA DE LAS SOLICITUDES
+-----------------------------------------------------------
+
+Meta compara LETRA POR LETRA lo que escribes en el Business
+Manager contra lo que dice el documento.
+
+Si la constancia dice "Av. Aguascalientes Sur 117" y tu
+escribes "Avenida Aguascalientes Sur #117", la rechazan.
+
+Copia y pega. No corrijas, no abrevies, no "mejores" nada.
+Aunque el documento tenga una falta de ortografia, se
+transcribe igual.
+
+
+-----------------------------------------------------------
+5. COMO PEDIRLO (mensaje listo para enviar)
+-----------------------------------------------------------
+
+"Para dejar el WhatsApp automatico funcionando necesito
+que Meta verifique al negocio. Es un tramite de ellos, de
+3 a 5 dias, y solo se hace una vez.
+
+Necesito tres cosas:
+
+1. Su Constancia de Situacion Fiscal del SAT
+2. Un comprobante de domicilio reciente (luz o agua)
+3. Acceso de administrador a su Facebook Business
+
+Y una decision: que numero quieren para el agente. Les
+recomiendo un chip nuevo, porque el numero que se registre
+deja de servir en la app normal de WhatsApp.
+
+En cuanto lo tenga, arranco el tramite."
+
+
+-----------------------------------------------------------
+6. QUE PASA DESPUES (para que sepas responder)
+-----------------------------------------------------------
+
+Meta revisa en 1 a 5 dias habiles.
+
+Si aprueban:
+  - Se registra el numero
+  - Se envian 2 plantillas a aprobacion:
+    confirmacion de cita y recordatorio
+    (categoria "utility", la mas barata y la que
+     aprueban mas rapido)
+  - Se cambia una variable en Railway y queda listo
+
+Si rechazan:
+  Casi siempre es por direccion que no coincide.
+  Se corrige y se vuelve a enviar. No hay penalizacion.
+
+MIENTRAS TANTO el sistema no esta muerto:
+  - La web recibe reservas normal
+  - Todo se guarda en la base de datos
+  - El panel muestra la agenda
+  - Sofia SI puede contestar a quien le escriba primero
+
+Lo unico dormido es el mensaje que sale sin que la
+clienta escriba antes.
+
+
+-----------------------------------------------------------
+7. COSTO (por si preguntan)
+-----------------------------------------------------------
+
+La verificacion es GRATIS.
+
+Meta regala 1,000 conversaciones de servicio al mes.
+Para un salon eso alcanza de sobra.
+
+Lo que se paga aparte son los servidores (Railway,
+Supabase) y la inteligencia artificial de Sofia.
+
+===========================================================

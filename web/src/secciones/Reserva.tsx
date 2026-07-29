@@ -51,6 +51,7 @@ const Reserva = forwardRef<HTMLElement, Props>(function Reserva(
   const [nombre, setNombre] = useState("");
   const [telefono, setTelefono] = useState("");
 
+  const [busqueda, setBusqueda] = useState("");
   const [enviando, setEnviando] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [exito, setExito] = useState<string | null>(null);
@@ -69,6 +70,28 @@ const Reserva = forwardRef<HTMLElement, Props>(function Reserva(
       setPaso(1);
     }
   }, [servicioSugeridoId]);
+
+  /**
+   * Normaliza para buscar: minúsculas y sin acentos. Así "podologia" encuentra
+   * "Podología" y "acrilico" encuentra "Acrílico" — nadie escribe los acentos
+   * en un buscador desde el teléfono.
+   */
+  const normalizar = (t: string) =>
+    t.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+
+  /**
+   * Filtra por NOMBRE y por CATEGORÍA a la vez: escribir "spa" saca todos los
+   * masajes y faciales aunque ninguno tenga "spa" en el nombre. Se admiten
+   * varias palabras sueltas ("gel pies") y todas deben aparecer.
+   */
+  const serviciosFiltrados = useMemo(() => {
+    const terminos = normalizar(busqueda).split(/\s+/).filter(Boolean);
+    if (terminos.length === 0) return servicios;
+    return servicios.filter((s) => {
+      const heno = normalizar(`${s.nombre} ${s.categoria}`);
+      return terminos.every((t) => heno.includes(t));
+    });
+  }, [servicios, busqueda]);
 
   const servicio = useMemo(
     () => servicios.find((s) => s.id === servicioId) ?? null,
@@ -170,26 +193,90 @@ const Reserva = forwardRef<HTMLElement, Props>(function Reserva(
             <div className="reserva__panel">
               {/* Paso 0 — servicio */}
               {paso === 0 && (
-                <div className="reserva__opciones">
-                  {servicios.map((s) => (
-                    <button
-                      key={s.id}
-                      className={`opcion ${servicioId === s.id ? "opcion--on" : ""}`}
-                      onClick={() => setServicioId(s.id)}
-                    >
-                      <span className="opcion__info">
-                        <span className="opcion__nombre">{s.nombre}</span>
-                        <span className="opcion__meta">
-                          {s.categoria} · {s.duracion_min} min
+                <>
+                  {/* Buscador: por nombre y por categoría. Con 37 servicios,
+                      hacer scroll es lo que más abandona la reserva. */}
+                  <div className="buscador">
+                    <span className="buscador__lupa" aria-hidden="true">
+                      <svg viewBox="0 0 20 20" width="17" height="17">
+                        <circle
+                          cx="8.5"
+                          cy="8.5"
+                          r="5.6"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="1.7"
+                        />
+                        <path
+                          d="M12.8 12.8L17 17"
+                          stroke="currentColor"
+                          strokeWidth="1.7"
+                          strokeLinecap="round"
+                        />
+                      </svg>
+                    </span>
+                    <input
+                      type="search"
+                      className="buscador__campo"
+                      value={busqueda}
+                      onChange={(e) => setBusqueda(e.target.value)}
+                      placeholder="Busca un servicio o una categoría…"
+                      aria-label="Buscar servicio"
+                    />
+                    {busqueda && (
+                      <button
+                        className="buscador__limpiar"
+                        onClick={() => setBusqueda("")}
+                        aria-label="Limpiar búsqueda"
+                      >
+                        ×
+                      </button>
+                    )}
+                  </div>
+
+                  {/* Atajos por categoría: quien no sabe qué escribir, toca. */}
+                  <div className="buscador__atajos">
+                    {[...new Set(servicios.map((s) => s.categoria))].map((c) => (
+                      <button
+                        key={c}
+                        className={`atajo ${normalizar(busqueda) === normalizar(c) ? "es-activo" : ""}`}
+                        onClick={() =>
+                          setBusqueda(normalizar(busqueda) === normalizar(c) ? "" : c)
+                        }
+                      >
+                        {c}
+                      </button>
+                    ))}
+                  </div>
+
+                  <div className="reserva__opciones">
+                    {serviciosFiltrados.map((s) => (
+                      <button
+                        key={s.id}
+                        className={`opcion ${servicioId === s.id ? "opcion--on" : ""}`}
+                        onClick={() => setServicioId(s.id)}
+                      >
+                        <span className="opcion__info">
+                          <span className="opcion__nombre">{s.nombre}</span>
+                          <span className="opcion__meta">
+                            {s.categoria} · {s.duracion_min} min
+                          </span>
                         </span>
-                      </span>
-                      <span className="opcion__precio">{pesos(s.precio)}</span>
-                    </button>
-                  ))}
-                  {servicios.length === 0 && (
-                    <p className="reserva__vacio">Cargando servicios…</p>
-                  )}
-                </div>
+                        <span className="opcion__precio">{pesos(s.precio)}</span>
+                      </button>
+                    ))}
+
+                    {servicios.length === 0 && (
+                      <p className="reserva__vacio">Cargando servicios…</p>
+                    )}
+                    {servicios.length > 0 && serviciosFiltrados.length === 0 && (
+                      <p className="reserva__vacio">
+                        No encontramos “{busqueda}”. Prueba con otra palabra, o
+                        escríbenos por WhatsApp y te ayudamos.
+                      </p>
+                    )}
+                  </div>
+                </>
               )}
 
               {/* Paso 1 — sucursal */}

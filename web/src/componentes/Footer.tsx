@@ -9,6 +9,37 @@ export default function Footer() {
         <div className="footer__marca">
           <span className="footer__nombre">The Nail Society</span>
           <span className="footer__spa">SPA · AGUASCALIENTES</span>
+          {/* Acceso al panel del salón. Va discreto y al pie a propósito: es
+              para el equipo, no para las clientas, pero tiene que estar a un
+              clic desde el teléfono de cualquier empleada. */}
+          <a
+            className="footer__panel"
+            href={`${import.meta.env.VITE_API_URL ?? ""}/panel`}
+            target="_blank"
+            rel="noopener"
+          >
+            <span className="footer__panel-icono" aria-hidden="true">
+              <svg viewBox="0 0 16 16" width="13" height="13">
+                <rect
+                  x="3"
+                  y="7"
+                  width="10"
+                  height="7"
+                  rx="1.4"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.4"
+                />
+                <path
+                  d="M5.6 7V4.9a2.4 2.4 0 0 1 4.8 0V7"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.4"
+                />
+              </svg>
+            </span>
+            Panel del equipo
+          </a>
         </div>
 
         <div className="footer__cols">
