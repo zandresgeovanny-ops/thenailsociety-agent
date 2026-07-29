@@ -1,0 +1,305 @@
+/* Agenda — sección oscura, en la misma clave que el hero.
+   Va en negro a propósito: rompe el bloque de secciones claras y hace que la
+   disponibilidad se lea como algo "en vivo", no como una tabla más. */
+
+.agenda {
+  position: relative;
+  padding: 120px 0 130px;
+  overflow: hidden;
+  background: radial-gradient(ellipse at 50% 0%, #221f1a 0%, var(--negro-hondo) 66%);
+}
+.agenda::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  opacity: 0.35;
+  pointer-events: none;
+  background-image:
+    radial-gradient(rgba(var(--acento-rgb), 0.26) 1px, transparent 1px),
+    radial-gradient(rgba(var(--acento-rgb), 0.14) 1px, transparent 1px);
+  background-size: 30px 30px, 30px 30px;
+  background-position: 0 0, 15px 15px;
+}
+.agenda > .contenedor {
+  position: relative;
+  z-index: 1;
+}
+
+.agenda__cabecera {
+  max-width: 620px;
+  margin-bottom: 46px;
+}
+.agenda__kicker {
+  display: block;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.32em;
+  text-transform: uppercase;
+  color: var(--acento);
+}
+.agenda__titulo {
+  margin-top: 14px;
+  font-size: clamp(34px, 4.4vw, 58px);
+  color: #faf7f1;
+}
+.agenda__titulo em {
+  font-style: italic;
+  font-weight: 300;
+  color: var(--acento-claro);
+}
+.agenda__entrada {
+  margin-top: 16px;
+  max-width: 46ch;
+  font-size: 16px;
+  color: rgba(255, 255, 255, 0.62);
+}
+
+/* ── Filtros ─────────────────────────────────────────────────────────── */
+
+.agenda__filtros {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 18px 28px;
+  padding-bottom: 26px;
+  margin-bottom: 30px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+}
+
+.agenda__campo {
+  display: grid;
+  gap: 8px;
+  min-width: 260px;
+  flex: 1 1 260px;
+}
+.agenda__campo span {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.24em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.44);
+}
+.agenda__campo select {
+  appearance: none;
+  width: 100%;
+  padding: 13px 40px 13px 16px;
+  font-family: var(--sans);
+  font-size: 15px;
+  color: #faf7f1;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(var(--acento-rgb), 0.34);
+  border-radius: 999px;
+  cursor: pointer;
+  /* Flecha dibujada en CSS para no cargar un icono */
+  background-image: linear-gradient(45deg, transparent 50%, var(--acento) 50%),
+    linear-gradient(135deg, var(--acento) 50%, transparent 50%);
+  background-position: calc(100% - 21px) 51%, calc(100% - 16px) 51%;
+  background-size: 5px 5px, 5px 5px;
+  background-repeat: no-repeat;
+  transition: border-color 0.25s ease;
+}
+.agenda__campo select:hover,
+.agenda__campo select:focus-visible {
+  border-color: var(--acento);
+  outline: none;
+}
+.agenda__campo option {
+  background: var(--carbon);
+  color: #faf7f1;
+}
+
+.agenda__sucursales {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.agenda__suc {
+  padding: 11px 20px;
+  font-family: var(--sans);
+  font-size: 14px;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.66);
+  background: transparent;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 999px;
+  transition:
+    color 0.25s ease,
+    border-color 0.25s ease,
+    background 0.25s ease;
+}
+.agenda__suc:hover {
+  color: #fff;
+  border-color: rgba(var(--acento-rgb), 0.5);
+}
+.agenda__suc.es-activo {
+  color: var(--acento-sobre);
+  background: var(--acento);
+  border-color: var(--acento);
+}
+
+/* ── Tira de días ────────────────────────────────────────────────────── */
+
+.agenda__dias {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 10px;
+  margin-bottom: 34px;
+}
+
+.dia {
+  display: grid;
+  justify-items: center;
+  gap: 3px;
+  padding: 18px 6px 15px;
+  font-family: var(--sans);
+  color: rgba(255, 255, 255, 0.72);
+  background: rgba(255, 255, 255, 0.045);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 14px;
+  transition:
+    background 0.3s ease,
+    border-color 0.3s ease,
+    transform 0.3s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.dia:hover:not(:disabled) {
+  transform: translateY(-3px);
+  border-color: rgba(var(--acento-rgb), 0.5);
+}
+.dia__nombre {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.5);
+}
+.dia__num {
+  font-family: var(--serif);
+  font-size: 30px;
+  font-weight: 600;
+  line-height: 1;
+  color: #faf7f1;
+}
+.dia__mes {
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.42);
+}
+.dia__libres {
+  margin-top: 6px;
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  color: var(--acento-claro);
+}
+
+.dia.es-activo {
+  background: rgba(var(--acento-rgb), 0.14);
+  border-color: var(--acento);
+}
+.dia.es-activo .dia__num {
+  color: var(--acento-claro);
+}
+
+.dia.es-vacio {
+  opacity: 0.34;
+  cursor: not-allowed;
+}
+.dia.es-vacio .dia__libres {
+  color: rgba(255, 255, 255, 0.4);
+}
+
+/* ── Horas ───────────────────────────────────────────────────────────── */
+
+.agenda__rejilla {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(96px, 1fr));
+  gap: 10px;
+}
+
+.hora {
+  padding: 15px 8px;
+  font-family: var(--sans);
+  font-size: 15px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: #faf7f1;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(var(--acento-rgb), 0.3);
+  border-radius: 999px;
+  transition:
+    background 0.25s ease,
+    color 0.25s ease,
+    border-color 0.25s ease,
+    transform 0.25s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.hora:hover {
+  transform: translateY(-2px);
+  color: var(--acento-sobre);
+  background: var(--acento);
+  border-color: var(--acento);
+}
+
+.agenda__nota {
+  margin-top: 20px;
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.4);
+}
+.agenda__vacio {
+  padding: 26px 0;
+  font-family: var(--serif);
+  font-style: italic;
+  font-size: 20px;
+  color: rgba(255, 255, 255, 0.56);
+}
+
+/* Esqueleto de carga */
+.agenda__skel {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(96px, 1fr));
+  gap: 10px;
+}
+.agenda__skel span {
+  height: 49px;
+  border-radius: 999px;
+  background: linear-gradient(
+    90deg,
+    rgba(255, 255, 255, 0.05),
+    rgba(255, 255, 255, 0.1),
+    rgba(255, 255, 255, 0.05)
+  );
+  background-size: 200% 100%;
+  animation: agendaBrillo 1.5s ease-in-out infinite;
+}
+@keyframes agendaBrillo {
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -200% 0;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .agenda__skel span {
+    animation: none;
+  }
+}
+
+@media (max-width: 860px) {
+  .agenda__dias {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+@media (max-width: 560px) {
+  .agenda {
+    padding: 84px 0 92px;
+  }
+  .agenda__dias {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 8px;
+  }
+  .dia__num {
+    font-size: 25px;
+  }
+  .agenda__rejilla,
+  .agenda__skel {
+    grid-template-columns: repeat(auto-fill, minmax(80px, 1fr));
+  }
+}

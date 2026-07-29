@@ -33,6 +33,7 @@ export default function Navbar({ alReservar }: Props) {
         </a>
         <nav className="navbar__links" aria-label="Secciones">
           <a href="#servicios">Servicios</a>
+          <a href="#agenda">Agenda</a>
           <a href="#equipo">Equipo</a>
           <a href="#resenas">Reseñas</a>
           <a href="#sucursales">Sucursales</a>

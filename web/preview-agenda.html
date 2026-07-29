@@ -1,0 +1,172 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>The Nail Society — sección Agenda (previsualización)</title>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,600;1,300;1,600&family=Inter:wght@400;600;700&display=swap" rel="stylesheet" />
+<style>
+:root{
+  --negro-hondo:#0b0b0b; --carbon:#1e1c1a;
+  --acento:#c9a24d; --acento-claro:#e0bd6f; --acento-sobre:#171310; --acento-rgb:201,162,77;
+  --serif:"Cormorant Garamond",Georgia,serif; --sans:"Inter",system-ui,sans-serif;
+}
+*{box-sizing:border-box}
+body{margin:0;font-family:var(--sans);background:var(--negro-hondo)}
+h2{margin:0;font-family:var(--serif);font-weight:600;line-height:1.05;letter-spacing:-.01em}
+p{margin:0;line-height:1.65}
+button{font-family:inherit;cursor:pointer}
+.contenedor{width:min(1180px,92vw);margin-inline:auto}
+.aviso{padding:16px 0;text-align:center;font-size:12px;letter-spacing:.16em;
+  text-transform:uppercase;color:#8a857e;background:#111;border-bottom:1px solid #2a2724}
+
+.agenda{position:relative;padding:120px 0 130px;overflow:hidden;
+  background:radial-gradient(ellipse at 50% 0%,#221f1a 0%,var(--negro-hondo) 66%)}
+.agenda::before{content:"";position:absolute;inset:0;opacity:.35;pointer-events:none;
+  background-image:radial-gradient(rgba(var(--acento-rgb),.26) 1px,transparent 1px),
+                   radial-gradient(rgba(var(--acento-rgb),.14) 1px,transparent 1px);
+  background-size:30px 30px,30px 30px;background-position:0 0,15px 15px}
+.agenda>.contenedor{position:relative;z-index:1}
+
+.agenda__cabecera{max-width:620px;margin-bottom:46px}
+.agenda__kicker{display:block;font-size:11px;font-weight:600;letter-spacing:.32em;
+  text-transform:uppercase;color:var(--acento)}
+.agenda__titulo{margin-top:14px;font-size:clamp(34px,4.4vw,58px);color:#faf7f1}
+.agenda__titulo em{font-style:italic;font-weight:300;color:var(--acento-claro)}
+.agenda__entrada{margin-top:16px;max-width:46ch;font-size:16px;color:rgba(255,255,255,.62)}
+
+.agenda__filtros{display:flex;flex-wrap:wrap;align-items:flex-end;gap:18px 28px;
+  padding-bottom:26px;margin-bottom:30px;border-bottom:1px solid rgba(255,255,255,.12)}
+.agenda__campo{display:grid;gap:8px;min-width:260px;flex:1 1 260px}
+.agenda__campo span{font-size:10px;font-weight:700;letter-spacing:.24em;
+  text-transform:uppercase;color:rgba(255,255,255,.44)}
+.agenda__campo select{appearance:none;width:100%;padding:13px 40px 13px 16px;
+  font-family:var(--sans);font-size:15px;color:#faf7f1;background:rgba(255,255,255,.06);
+  border:1px solid rgba(var(--acento-rgb),.34);border-radius:999px;cursor:pointer;
+  background-image:linear-gradient(45deg,transparent 50%,var(--acento) 50%),
+    linear-gradient(135deg,var(--acento) 50%,transparent 50%);
+  background-position:calc(100% - 21px) 51%,calc(100% - 16px) 51%;
+  background-size:5px 5px,5px 5px;background-repeat:no-repeat;transition:border-color .25s}
+.agenda__campo select:hover,.agenda__campo select:focus-visible{border-color:var(--acento);outline:none}
+.agenda__campo option{background:var(--carbon);color:#faf7f1}
+
+.agenda__sucursales{display:flex;flex-wrap:wrap;gap:8px}
+.agenda__suc{padding:11px 20px;font-size:14px;font-weight:600;color:rgba(255,255,255,.66);
+  background:transparent;border:1px solid rgba(255,255,255,.18);border-radius:999px;
+  transition:color .25s,border-color .25s,background .25s}
+.agenda__suc:hover{color:#fff;border-color:rgba(var(--acento-rgb),.5)}
+.agenda__suc.es-activo{color:var(--acento-sobre);background:var(--acento);border-color:var(--acento)}
+
+.agenda__dias{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:10px;margin-bottom:34px}
+.dia{display:grid;justify-items:center;gap:3px;padding:18px 6px 15px;color:rgba(255,255,255,.72);
+  background:rgba(255,255,255,.045);border:1px solid rgba(255,255,255,.1);border-radius:14px;
+  transition:background .3s,border-color .3s,transform .3s cubic-bezier(.22,1,.36,1)}
+.dia:hover:not(:disabled){transform:translateY(-3px);border-color:rgba(var(--acento-rgb),.5)}
+.dia__nombre{font-size:10px;font-weight:700;letter-spacing:.2em;text-transform:uppercase;color:rgba(255,255,255,.5)}
+.dia__num{font-family:var(--serif);font-size:30px;font-weight:600;line-height:1;color:#faf7f1}
+.dia__mes{font-size:11px;color:rgba(255,255,255,.42)}
+.dia__libres{margin-top:6px;font-size:10px;letter-spacing:.08em;color:var(--acento-claro)}
+.dia.es-activo{background:rgba(var(--acento-rgb),.14);border-color:var(--acento)}
+.dia.es-activo .dia__num{color:var(--acento-claro)}
+.dia.es-vacio{opacity:.34;cursor:not-allowed}
+.dia.es-vacio .dia__libres{color:rgba(255,255,255,.4)}
+
+.agenda__rejilla{display:grid;grid-template-columns:repeat(auto-fill,minmax(96px,1fr));gap:10px}
+.hora{padding:15px 8px;font-size:15px;font-weight:600;font-variant-numeric:tabular-nums;
+  color:#faf7f1;background:rgba(255,255,255,.05);border:1px solid rgba(var(--acento-rgb),.3);
+  border-radius:999px;transition:background .25s,color .25s,border-color .25s,transform .25s cubic-bezier(.22,1,.36,1)}
+.hora:hover{transform:translateY(-2px);color:var(--acento-sobre);background:var(--acento);border-color:var(--acento)}
+.agenda__nota{margin-top:20px;font-size:12px;color:rgba(255,255,255,.4)}
+.agenda__vacio{padding:26px 0;font-family:var(--serif);font-style:italic;font-size:20px;color:rgba(255,255,255,.56)}
+
+@media(max-width:860px){.agenda__dias{grid-template-columns:repeat(4,minmax(0,1fr))}}
+@media(max-width:560px){
+  .agenda{padding:84px 0 92px}
+  .agenda__dias{grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+  .dia__num{font-size:25px}
+  .agenda__rejilla{grid-template-columns:repeat(auto-fill,minmax(80px,1fr))}
+}
+</style>
+</head>
+<body>
+
+<p class="aviso">Previsualización · datos reales traídos hoy de la API de Railway</p>
+
+<section class="agenda" id="agenda">
+  <div class="contenedor">
+    <div class="agenda__cabecera">
+      <span class="agenda__kicker">Disponibilidad en vivo</span>
+      <h2 class="agenda__titulo">¿Cuándo te <em>acomoda</em>?</h2>
+      <p class="agenda__entrada">Estos son los lugares que quedan esta semana. Elige uno y te llevamos directo a la reserva.</p>
+    </div>
+
+    <div class="agenda__filtros">
+      <label class="agenda__campo">
+        <span>Servicio</span>
+        <select id="servicio">
+          <option>Esmaltado en gel · 60 min</option>
+          <option>Manicure de lujo · 90 min</option>
+          <option>Pedicure de lujo · 90 min</option>
+          <option>Acrílico con tip · 90 min</option>
+          <option>Masaje relajante de lujo · 90 min</option>
+        </select>
+      </label>
+      <div class="agenda__sucursales" role="group" aria-label="Sucursal">
+        <button class="agenda__suc es-activo">Cualquiera</button>
+        <button class="agenda__suc">Norte</button>
+        <button class="agenda__suc">Sur</button>
+      </div>
+    </div>
+
+    <div class="agenda__dias" id="dias"></div>
+    <div class="agenda__horas" id="horas"></div>
+  </div>
+</section>
+
+<script>
+// Datos reales consultados hoy contra https://thenailsociety.up.railway.app
+const HORAS = ["10:00","10:30","11:00","11:30","12:00","12:30","13:00","13:30","14:00",
+               "14:30","15:00","15:30","16:00","16:30","17:00","17:30","18:00","18:30","19:00"];
+const DIAS_SEM = ["dom","lun","mar","mié","jue","vie","sáb"];
+const MESES = ["ene","feb","mar","abr","may","jun","jul","ago","sep","oct","nov","dic"];
+
+const hoy = new Date(2026, 6, 28);
+const dias = Array.from({length:7}, (_,i) => {
+  const d = new Date(hoy); d.setDate(hoy.getDate()+i);
+  // El domingo el salón cierra: la API devuelve cero huecos.
+  return { fecha:d, slots: d.getDay()===0 ? [] : HORAS };
+});
+
+let activo = 0;
+const $dias = document.getElementById("dias"), $horas = document.getElementById("horas");
+
+function pintar(){
+  $dias.innerHTML = dias.map((x,i)=>{
+    const vacio = x.slots.length===0;
+    return `<button class="dia ${i===activo?"es-activo":""} ${vacio?"es-vacio":""}" ${vacio?"disabled":""} data-i="${i}">
+      <span class="dia__nombre">${i===0?"Hoy":DIAS_SEM[x.fecha.getDay()]}</span>
+      <span class="dia__num">${x.fecha.getDate()}</span>
+      <span class="dia__mes">${MESES[x.fecha.getMonth()]}</span>
+      <span class="dia__libres">${vacio?"cerrado":x.slots.length+" lugares"}</span>
+    </button>`;
+  }).join("");
+
+  const s = dias[activo].slots;
+  $horas.innerHTML = s.length
+    ? `<div class="agenda__rejilla">${s.map(h=>`<button class="hora">${h}</button>`).join("")}</div>
+       <p class="agenda__nota">Horarios reales, actualizados al momento. Al elegir uno pasas a la reserva con el servicio ya seleccionado.</p>`
+    : `<p class="agenda__vacio">No queda lugar ese día. Prueba otra fecha o la otra sucursal.</p>`;
+
+  $dias.querySelectorAll(".dia:not([disabled])").forEach(b=>
+    b.onclick = () => { activo = +b.dataset.i; pintar(); });
+}
+pintar();
+
+document.querySelectorAll(".agenda__suc").forEach(b=>b.onclick=()=>{
+  document.querySelectorAll(".agenda__suc").forEach(x=>x.classList.remove("es-activo"));
+  b.classList.add("es-activo");
+});
+</script>
+</body>
+</html>

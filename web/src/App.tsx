@@ -8,6 +8,7 @@ import Navbar from "./componentes/Navbar";
 import Footer from "./componentes/Footer";
 import Hero from "./secciones/Hero";
 import Servicios from "./secciones/Servicios";
+import Agenda from "./secciones/Agenda";
 import Equipo from "./secciones/Equipo";
 import Resenas from "./secciones/Resenas";
 import Sucursales from "./secciones/Sucursales";
@@ -37,6 +38,9 @@ export default function App() {
       <main>
         <Hero alReservar={irAReserva} alVerServicios={() => irA("servicios")} />
         <Servicios alReservarServicio={reservarServicio} />
+        {/* La agenda va justo después del catálogo: primero qué cuesta,
+            luego cuándo hay lugar. Es el orden en que la gente pregunta. */}
+        <Agenda alReservarServicio={reservarServicio} />
         <Equipo />
         {/* La prueba social va después de conocer al equipo y antes de decir
             dónde estamos: primero convences, luego indicas el camino. */}
