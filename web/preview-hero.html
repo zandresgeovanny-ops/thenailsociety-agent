@@ -1,0 +1,142 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>The Nail Society — dos direcciones de Hero</title>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,600;1,300;1,600&family=Inter:wght@400;600;700&display=swap" rel="stylesheet" />
+<style>
+:root{
+  --hueso:#f7f4ee; --crema:#f4efe6;
+  --negro:#0d0c0b; --carbon:#17150f;
+  --acento:#c9a24d; --acento-claro:#e0bd6f; --acento-hondo:#a67c2e;
+  --acento-texto:#7a5f22; --acento-sobre:#171310; --acento-rgb:201,162,77;
+  --tinta:#1a1a1a; --gris:#6b6560;
+  --serif:"Cormorant Garamond",Georgia,serif;
+  --sans:"Inter",system-ui,sans-serif;
+}
+*{box-sizing:border-box}
+body{margin:0;font-family:var(--sans);background:#2a2724;color:#fff}
+h1{margin:0;font-family:var(--serif);font-weight:600;line-height:.98;letter-spacing:-.015em}
+p{margin:0;line-height:1.6}
+
+.rotulo{padding:20px 5vw;background:#111;border-bottom:1px solid #333;
+  font-size:12px;letter-spacing:.24em;text-transform:uppercase;color:#c9a24d;
+  display:flex;justify-content:space-between;flex-wrap:wrap;gap:10px}
+.rotulo span:last-child{color:#8a857e;letter-spacing:.08em;text-transform:none;font-size:13px}
+
+/* ══════════ A · VITRINA ══════════ */
+.a{position:relative;min-height:100vh;display:grid;align-items:center;overflow:hidden;background:var(--negro)}
+.a__foto{position:absolute;inset:0;background:url("../knowledge/salon_dentro.jpg") center 42%/cover no-repeat;
+  filter:grayscale(.72) brightness(.42) contrast(1.18) sepia(.28);transform:scale(1.06)}
+.a__velo{position:absolute;inset:0;
+  background:linear-gradient(100deg,rgba(13,12,11,.94) 0%,rgba(13,12,11,.82) 42%,rgba(13,12,11,.35) 100%),
+             radial-gradient(circle at 22% 50%,rgba(var(--acento-rgb),.16),transparent 58%)}
+.a__grano{position:absolute;inset:0;opacity:.5;
+  background-image:radial-gradient(rgba(var(--acento-rgb),.16) 1px,transparent 1px);background-size:3px 3px}
+.a__inner{position:relative;width:min(1180px,90vw);margin-inline:auto;padding:120px 0 90px;max-width:none}
+.a__kicker{display:flex;align-items:center;gap:14px;font-size:11px;letter-spacing:.34em;
+  text-transform:uppercase;color:var(--acento-claro);margin-bottom:26px}
+.a__kicker i{display:block;width:52px;height:1px;background:var(--acento);font-style:normal}
+.a h1{font-size:clamp(46px,7.6vw,116px);color:#fff;max-width:15ch}
+.a h1 em{font-style:italic;font-weight:300;color:var(--acento-claro)}
+.a__sub{margin-top:28px;max-width:44ch;font-size:17px;color:rgba(255,255,255,.72)}
+.a__cta{display:flex;flex-wrap:wrap;gap:14px;margin-top:40px}
+.a__meta{display:flex;flex-wrap:wrap;gap:28px;margin-top:56px;padding-top:26px;
+  border-top:1px solid rgba(255,255,255,.14);font-size:12px;letter-spacing:.14em;
+  text-transform:uppercase;color:rgba(255,255,255,.5)}
+.a__meta b{font-family:var(--serif);font-size:19px;color:var(--acento-claro);letter-spacing:0;margin-right:6px}
+.a__vertical{position:absolute;right:26px;top:50%;transform:translateY(-50%) rotate(90deg);
+  transform-origin:right center;font-size:10px;letter-spacing:.42em;text-transform:uppercase;
+  color:rgba(255,255,255,.28);white-space:nowrap}
+
+/* ══════════ B · SELLO ══════════ */
+.b{position:relative;min-height:100vh;display:grid;place-items:center;overflow:hidden;
+  background:radial-gradient(ellipse at 50% 38%,#221f1a 0%,var(--negro) 62%)}
+.b__trama{position:absolute;inset:0;opacity:.42;
+  background-image:radial-gradient(rgba(var(--acento-rgb),.3) 1px,transparent 1px),
+                   radial-gradient(rgba(var(--acento-rgb),.16) 1px,transparent 1px);
+  background-size:30px 30px,30px 30px;background-position:0 0,15px 15px}
+.b__marco{position:absolute;inset:34px;border:1px solid rgba(var(--acento-rgb),.3);pointer-events:none}
+.b__marco::before,.b__marco::after{content:"";position:absolute;background:var(--acento);opacity:.75}
+.b__marco::before{top:-1px;left:50%;transform:translateX(-50%);width:120px;height:2px}
+.b__marco::after{bottom:-1px;left:50%;transform:translateX(-50%);width:120px;height:2px}
+.b__inner{position:relative;text-align:center;padding:110px 6vw;max-width:1000px}
+.b__medalla{width:82px;height:82px;margin:0 auto 34px;display:grid;place-items:center;
+  border:1px solid var(--acento);border-radius:50%;position:relative}
+.b__medalla::after{content:"";position:absolute;inset:5px;border:1px solid rgba(var(--acento-rgb),.42);border-radius:50%}
+.b__medalla span{font-family:var(--serif);font-size:27px;color:var(--acento-claro);letter-spacing:.04em}
+.b__kicker{font-size:11px;letter-spacing:.4em;text-transform:uppercase;color:var(--acento);
+  display:block;margin-bottom:24px}
+.b h1{font-size:clamp(44px,7vw,104px);color:#faf7f1}
+.b h1 em{display:block;font-style:italic;font-weight:300;color:var(--acento-claro);margin-top:6px}
+.b__regla{width:64px;height:1px;background:var(--acento);margin:34px auto}
+.b__sub{max-width:52ch;margin:0 auto;font-size:17px;color:rgba(255,255,255,.66)}
+.b__cta{display:flex;flex-wrap:wrap;gap:14px;justify-content:center;margin-top:40px}
+.b__pie{margin-top:60px;font-size:11px;letter-spacing:.28em;text-transform:uppercase;color:rgba(255,255,255,.34)}
+
+/* Botones compartidos */
+.btn{display:inline-flex;align-items:center;justify-content:center;padding:16px 34px;border-radius:999px;
+  font-family:var(--sans);font-weight:600;font-size:15px;border:none;cursor:pointer;text-decoration:none;
+  transition:transform .25s cubic-bezier(.22,1,.36,1),box-shadow .25s,background .25s}
+.btn--oro{background:linear-gradient(135deg,var(--acento-claro),var(--acento));color:var(--acento-sobre);
+  box-shadow:0 14px 34px rgba(var(--acento-rgb),.3)}
+.btn--oro:hover{transform:translateY(-2px);box-shadow:0 18px 44px rgba(var(--acento-rgb),.45)}
+.btn--linea{background:transparent;color:#f2ede4;border:1px solid rgba(var(--acento-rgb),.55)}
+.btn--linea:hover{background:rgba(var(--acento-rgb),.13)}
+
+@media(max-width:720px){
+  .a__inner{padding:96px 0 70px}
+  .a__vertical{display:none}
+  .b__marco{inset:18px}
+  .b__inner{padding:88px 6vw}
+}
+</style>
+</head>
+<body>
+
+<div class="rotulo"><span>Opción A · Vitrina</span><span>Foto real tratada. Depende de tener buena fotografía.</span></div>
+
+<section class="a">
+  <div class="a__foto"></div>
+  <div class="a__velo"></div>
+  <div class="a__grano"></div>
+  <span class="a__vertical">Norte &amp; Sur — Aguascalientes</span>
+  <div class="a__inner">
+    <span class="a__kicker"><i></i>Nail spa · Aguascalientes</span>
+    <h1>Relájate y consiéntete como <em>mereces</em>.</h1>
+    <p class="a__sub">Uñas, spa, faciales y podología en el lugar más sofisticado de Aguascalientes.</p>
+    <div class="a__cta">
+      <a class="btn btn--oro" href="#">Agendar mi cita</a>
+      <a class="btn btn--linea" href="#">Ver la carta</a>
+    </div>
+    <div class="a__meta">
+      <span><b>4.1</b> en Google</span>
+      <span><b>150</b> reseñas</span>
+      <span><b>02</b> sucursales</span>
+    </div>
+  </div>
+</section>
+
+<div class="rotulo"><span>Opción B · Sello</span><span>Sin fotografía. Funciona hoy mismo, tal cual.</span></div>
+
+<section class="b">
+  <div class="b__trama"></div>
+  <div class="b__marco"></div>
+  <div class="b__inner">
+    <div class="b__medalla"><span>TNS</span></div>
+    <span class="b__kicker">The Nail Society · Aguascalientes</span>
+    <h1>Relájate y consiéntete<em>como mereces</em></h1>
+    <div class="b__regla"></div>
+    <p class="b__sub">Uñas, spa, faciales y podología. Dos sucursales, Norte y Sur, y 37 servicios para darte un momento para ti.</p>
+    <div class="b__cta">
+      <a class="btn btn--oro" href="#">Agendar mi cita</a>
+      <a class="btn btn--linea" href="#">Ver la carta</a>
+    </div>
+    <p class="b__pie">4.1 en Google · 150 reseñas</p>
+  </div>
+</section>
+
+</body>
+</html>

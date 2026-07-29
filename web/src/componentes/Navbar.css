@@ -4,8 +4,32 @@
   left: 0;
   right: 0;
   z-index: 50;
+  transition:
+    background 0.4s ease,
+    border-color 0.4s ease,
+    backdrop-filter 0.4s ease;
+}
+
+/* Sobre el hero negro: sin fondo, para no cortar la escena. */
+.navbar--sobre-hero {
+  background: transparent;
+  border-bottom: 1px solid transparent;
+}
+.navbar--sobre-hero .navbar__nombre {
+  color: #faf7f1;
+}
+.navbar--sobre-hero .navbar__spa,
+.navbar--sobre-hero .navbar__links {
+  color: rgba(255, 255, 255, 0.66);
+}
+.navbar--sobre-hero .navbar__links a:hover {
+  color: #fff;
+}
+
+/* Ya con scroll: fondo claro, que es el del resto de la página. */
+.navbar--solida {
   backdrop-filter: saturate(1.2) blur(12px);
-  background: rgba(247, 244, 238, 0.72);
+  background: rgba(247, 244, 238, 0.82);
   border-bottom: 1px solid var(--linea);
 }
 

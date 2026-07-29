@@ -36,7 +36,7 @@ Instagram [@thenailsociety_ags](https://instagram.com/thenailsociety_ags).
 - Backend / API: `https://thenailsociety.up.railway.app`
 - Salud del backend: `https://thenailsociety.up.railway.app/` → debe responder `{"status":"ok"}`
 - Panel del salón: `https://thenailsociety.up.railway.app/panel`
-- Web pública: *(pendiente — se llena cuando Vercel termine el primer deploy)*
+- Web pública: `https://thenailsociety-agent-3lmx.vercel.app`
 
 ---
 

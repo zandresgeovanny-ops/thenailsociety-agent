@@ -1,279 +1,212 @@
-/* Hero editorial de alta costura — blanco y dorado, asimétrico.
-   Dos bloques en rejilla: texto (izquierda) y modelo 3D (derecha). Al hacer
-   scroll intercambian posición en X; el texto queda por ENCIMA (z alto) y el
-   modelo pasa por DETRÁS (z bajo). */
+/* Hero "Sello" — negro profundo, marco dorado, titular centrado.
+   Regla que no se rompe: el dorado nunca es color de texto de lectura. Aquí
+   vive en el marco, el medallón, el filete y la itálica del titular, que va
+   en --acento-claro sobre negro (contraste de sobra). */
 
 .hero {
   position: relative;
   min-height: 100svh;
-  background:
-    radial-gradient(900px 620px at 92% -5%, rgba(201, 162, 77, 0.12), transparent 62%),
-    linear-gradient(180deg, var(--blanco), var(--hueso));
-  color: var(--tinta);
-  overflow: hidden;
-  isolation: isolate;
-}
-
-/* ── Rejilla asimétrica: texto ancho a la izquierda, modelo a la derecha ── */
-.hero__grid {
-  position: relative;
-  z-index: 2;
-  min-height: 100svh;
   display: grid;
-  grid-template-columns: minmax(0, 7fr) 5fr;
-  align-items: center;
-  padding-block: clamp(120px, 18vh, 190px) 90px;
+  place-items: center;
+  overflow: hidden;
+  /* Halo cálido arriba que cae a negro: da profundidad sin usar imágenes. */
+  background: radial-gradient(ellipse at 50% 36%, #221f1a 0%, var(--negro-hondo) 62%);
 }
 
-/* Bloques del swap: ambos aceleran transform. El texto SIEMPRE por encima. */
-.hero__bloque {
-  will-change: transform;
-}
-.hero__bloque--texto {
-  grid-column: 1;
-  position: relative;
-  z-index: 3; /* por encima del modelo durante el intercambio */
-  max-width: 640px;
-  padding-left: clamp(0px, 2vw, 40px);
-}
-.hero__bloque--modelo {
-  grid-column: 2;
-  position: relative;
-  z-index: 1; /* por detrás del texto durante el intercambio */
-  align-self: stretch;
-  min-height: clamp(420px, 62vh, 720px);
-}
-
-/* ── Kicker con filete dorado ── */
-.hero__kicker {
-  display: inline-flex;
-  align-items: center;
-  gap: 14px;
-  font-family: var(--sans);
-  font-size: 12px;
-  letter-spacing: 0.28em;
-  text-transform: uppercase;
-  color: var(--oro-texto);
-  margin-bottom: 26px;
-}
-.hero__regla {
-  width: 44px;
-  height: 1px;
-  background: linear-gradient(90deg, var(--oro), transparent);
-  flex: none;
-}
-
-/* ── Titular display ── */
-.hero__titulo {
-  font-family: var(--serif);
-  font-weight: 600;
-  font-size: clamp(46px, 8.4vw, 108px);
-  line-height: 0.94;
-  letter-spacing: -0.02em;
-  color: var(--tinta);
-  margin: 0;
-}
-.hero__titulo em {
-  font-style: italic;
-  font-weight: 500;
-  color: var(--oro-texto);
-}
-
-/* ── Subtítulo ── */
-.hero__sub {
-  margin: 28px 0 0;
-  max-width: 430px;
-  font-size: clamp(15px, 1.6vw, 18px);
-  line-height: 1.65;
-  color: var(--tinta-suave);
-}
-
-/* ── Llamadas a la acción ── */
-.hero__acciones {
-  display: flex;
-  gap: 16px;
-  flex-wrap: wrap;
-  margin-top: 38px;
-}
-
-/* ── Metadatos tipo revista ── */
-.hero__meta {
-  display: flex;
-  align-items: center;
-  gap: 26px;
-  flex-wrap: wrap;
-  margin-top: 42px;
-  padding-top: 20px;
-  border-top: 1px solid var(--linea);
-  font-family: var(--sans);
-  font-size: 12px;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-  color: var(--gris);
-}
-.hero__meta b {
-  color: var(--tinta);
-  font-weight: 700;
-}
-.hero__ig {
-  color: var(--acento-texto);
-  font-weight: 600;
-  text-decoration: none;
-}
-.hero__ig:hover {
-  text-decoration: underline;
-}
-
-/* ── Etiqueta vertical al borde izquierdo ── */
-.hero__vertical {
-  position: absolute;
-  left: 26px;
-  top: 50%;
-  transform: translateY(-50%) rotate(180deg);
-  writing-mode: vertical-rl;
-  font-family: var(--sans);
-  font-size: 11px;
-  letter-spacing: 0.34em;
-  text-transform: uppercase;
-  color: var(--oro-texto);
-  opacity: 0.75;
-  z-index: 3;
-}
-
-/* ── Número índice sobredimensionado, detalle de fondo ── */
-.hero__indice {
-  position: absolute;
-  left: clamp(-10px, 3vw, 40px);
-  bottom: -0.18em;
-  font-family: var(--serif);
-  font-weight: 600;
-  font-size: clamp(180px, 34vw, 460px);
-  line-height: 1;
-  color: rgba(201, 162, 77, 0.1);
-  pointer-events: none;
-  z-index: 1;
-  user-select: none;
-}
-
-/* ── Marco dorado que contiene la escena 3D ── */
-.hero__escena-marco {
+/* Trama de damasco muy tenue — el mismo recurso que la sección de reseñas,
+   para que la página se sienta de una sola pieza. */
+.hero__trama {
   position: absolute;
   inset: 0;
-  border: 1px solid var(--oro);
-  border-right: none;
-  border-radius: 220px 0 0 220px;
-  background:
-    radial-gradient(120% 90% at 70% 25%, rgba(255, 255, 255, 0.9), transparent 60%),
-    linear-gradient(155deg, var(--blanco), var(--crema) 70%, #efe6d3);
-  box-shadow: var(--sombra);
-  overflow: hidden;
+  opacity: 0.4;
+  pointer-events: none;
+  background-image:
+    radial-gradient(rgba(var(--acento-rgb), 0.3) 1px, transparent 1px),
+    radial-gradient(rgba(var(--acento-rgb), 0.16) 1px, transparent 1px);
+  background-size: 30px 30px, 30px 30px;
+  background-position: 0 0, 15px 15px;
 }
-.hero__escena-marco::before {
+
+/* Marco de sello, con dos acentos centrados arriba y abajo */
+.hero__marco {
+  position: absolute;
+  inset: 34px;
+  border: 1px solid rgba(var(--acento-rgb), 0.3);
+  pointer-events: none;
+}
+.hero__marco::before,
+.hero__marco::after {
   content: "";
   position: absolute;
-  inset: 16px;
-  border: 1px solid rgba(201, 162, 77, 0.35);
-  border-right: none;
-  border-radius: 200px 0 0 200px;
-  pointer-events: none;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 120px;
+  height: 2px;
+  background: var(--acento);
+  opacity: 0.75;
 }
-.hero__escena-hint {
-  position: absolute;
-  left: 34px;
-  bottom: 24px;
-  font-family: var(--sans);
-  font-size: 10px;
-  letter-spacing: 0.22em;
-  text-transform: uppercase;
-  color: var(--oro-texto);
-  opacity: 0.5;
-  z-index: 2;
+.hero__marco::before {
+  top: -1px;
+}
+.hero__marco::after {
+  bottom: -1px;
 }
 
-/* ── Mano 3D (canvas R3F) dentro del marco ── */
-.mano-hero {
-  position: absolute;
-  inset: 0;
-  overflow: hidden;
+.hero__inner {
+  position: relative;
+  z-index: 1;
+  text-align: center;
+  padding: 110px 6vw;
+  max-width: 1000px;
+  will-change: transform, opacity;
 }
-.mano-hero__canvas {
-  width: 100% !important;
-  height: 100% !important;
+
+/* Medallón: doble aro dorado con las iniciales, guiño al logotipo real */
+.hero__medalla {
+  width: 82px;
+  height: 82px;
+  margin: 0 auto 34px;
+  display: grid;
+  place-items: center;
+  border: 1px solid var(--acento);
+  border-radius: 50%;
+  position: relative;
+}
+.hero__medalla::after {
+  content: "";
+  position: absolute;
+  inset: 5px;
+  border: 1px solid rgba(var(--acento-rgb), 0.42);
+  border-radius: 50%;
+}
+.hero__medalla span {
+  font-family: var(--serif);
+  font-size: 27px;
+  color: var(--acento-claro);
+  letter-spacing: 0.04em;
+}
+
+.hero__kicker {
   display: block;
+  margin-bottom: 24px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.4em;
+  text-transform: uppercase;
+  color: var(--acento);
 }
 
-/* ── Indicador de scroll ── */
+.hero__titulo {
+  font-size: clamp(44px, 7vw, 104px);
+  font-weight: 600;
+  line-height: 0.98;
+  letter-spacing: -0.015em;
+  color: #faf7f1;
+}
+.hero__titulo em {
+  display: block;
+  margin-top: 6px;
+  font-style: italic;
+  font-weight: 300;
+  color: var(--acento-claro);
+}
+
+.hero__regla span {
+  display: block;
+  width: 64px;
+  height: 1px;
+  margin: 34px auto;
+  background: var(--acento);
+}
+
+.hero__sub {
+  max-width: 52ch;
+  margin: 0 auto;
+  font-size: 17px;
+  color: rgba(255, 255, 255, 0.66);
+}
+
+.hero__acciones {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+  justify-content: center;
+  margin-top: 40px;
+}
+
+.hero__pie {
+  margin-top: 60px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.28em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.34);
+}
+
+/* Indicador de scroll centrado, con una línea que respira */
 .hero__scroll {
   position: absolute;
-  left: clamp(20px, 4vw, 64px);
-  bottom: 28px;
-  z-index: 3;
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  font-family: var(--sans);
-  font-size: 11px;
-  letter-spacing: 0.24em;
+  bottom: 54px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: grid;
+  justify-items: center;
+  gap: 10px;
+  font-size: 10px;
+  letter-spacing: 0.3em;
   text-transform: uppercase;
-  color: var(--gris);
+  color: rgba(255, 255, 255, 0.36);
+  pointer-events: none;
 }
 .hero__scroll i {
   display: block;
-  width: 46px;
-  height: 1px;
-  background: var(--oro-hondo);
-  transform-origin: left;
-  animation: hero-scroll 2.2s ease-in-out infinite;
+  width: 1px;
+  height: 42px;
+  background: linear-gradient(180deg, var(--acento), transparent);
+  animation: heroDesliza 2.4s ease-in-out infinite;
+  transform-origin: top;
 }
-@keyframes hero-scroll {
+
+@keyframes heroDesliza {
   0%,
   100% {
-    transform: scaleX(0.3);
+    transform: scaleY(0.4);
     opacity: 0.4;
   }
   50% {
-    transform: scaleX(1);
+    transform: scaleY(1);
     opacity: 1;
-  }
-}
-
-/* ── Responsivo: se apila (modelo arriba, texto abajo) y SIN swap en X ── */
-@media (max-width: 980px) {
-  .hero__grid {
-    grid-template-columns: 1fr;
-    min-height: auto;
-    padding-block: 30px 76px;
-  }
-  .hero__bloque--texto,
-  .hero__bloque--modelo {
-    grid-column: 1;
-    transform: none !important; /* anula cualquier x del swap */
-  }
-  .hero__bloque--modelo {
-    order: -1;
-    width: 100%;
-    min-height: 46svh;
-    margin-bottom: 28px;
-  }
-  .hero__escena-marco {
-    inset: 0;
-    border-right: 1px solid var(--oro);
-    border-radius: var(--radio-lg);
-  }
-  .hero__escena-marco::before {
-    inset: 12px;
-    border-right: 1px solid rgba(201, 162, 77, 0.35);
-    border-radius: calc(var(--radio-lg) - 8px);
-  }
-  .hero__vertical,
-  .hero__indice,
-  .hero__scroll {
-    display: none;
   }
 }
 
 @media (prefers-reduced-motion: reduce) {
   .hero__scroll i {
     animation: none;
+  }
+}
+
+@media (max-width: 720px) {
+  .hero__marco {
+    inset: 18px;
+  }
+  .hero__inner {
+    padding: 92px 7vw;
+  }
+  .hero__medalla {
+    width: 68px;
+    height: 68px;
+    margin-bottom: 26px;
+  }
+  .hero__medalla span {
+    font-size: 22px;
+  }
+  .hero__kicker {
+    letter-spacing: 0.3em;
+  }
+  .hero__pie {
+    margin-top: 44px;
+  }
+  .hero__scroll {
+    bottom: 34px;
   }
 }
