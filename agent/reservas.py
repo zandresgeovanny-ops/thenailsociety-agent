@@ -152,6 +152,15 @@ async def api_reservar(payload: dict, request: Request):
         raise HTTPException(status_code=400, detail="Fecha u hora inválida")
     termina_en = inicia_en + timedelta(minutes=servicio["duracion_min"])
 
+    # Si la clienta eligió especialista pero dejó la sucursal en "cualquiera",
+    # la sucursal se deduce de la empleada: nadie atiende en dos sedes a la vez.
+    # Sin esto la cita entra sin sucursal y el panel la muestra con un guion.
+    if empleado_id and not sucursal_id:
+        equipo = await listar_empleados()
+        sucursal_id = next(
+            (e["sucursal_id"] for e in equipo if str(e["id"]) == str(empleado_id)), None
+        )
+
     cliente_id = await buscar_o_crear_cliente(telefono, nombre)
     try:
         await guardar_cita(
