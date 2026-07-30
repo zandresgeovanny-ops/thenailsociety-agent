@@ -152,13 +152,22 @@ async def api_reservar(payload: dict, request: Request):
         raise HTTPException(status_code=400, detail="Fecha u hora inválida")
     termina_en = inicia_en + timedelta(minutes=servicio["duracion_min"])
 
-    # Si la clienta eligió especialista pero dejó la sucursal en "cualquiera",
-    # la sucursal se deduce de la empleada: nadie atiende en dos sedes a la vez.
-    # Sin esto la cita entra sin sucursal y el panel la muestra con un guion.
+    # ── La sucursal no puede quedar vacía ────────────────────────────────
+    # Una cita sin sede es inservible para el salón: no saben dónde atenderla.
+    # Se resuelve en dos niveles para que ningún cliente (web, portal o un
+    # POST directo) pueda colarla:
+    #   1. Si viene especialista pero no sucursal, se deduce de ella.
+    #   2. Si sigue sin sucursal, se rechaza la reserva.
     if empleado_id and not sucursal_id:
         equipo = await listar_empleados()
         sucursal_id = next(
             (e["sucursal_id"] for e in equipo if str(e["id"]) == str(empleado_id)), None
+        )
+
+    if not sucursal_id:
+        raise HTTPException(
+            status_code=400,
+            detail="Elige una sucursal para poder agendar tu cita.",
         )
 
     cliente_id = await buscar_o_crear_cliente(telefono, nombre)
@@ -299,9 +308,11 @@ _PAGINA_HTML = """<!DOCTYPE html>
     <h1>The Nail Society Spa</h1>
     <p>Reserva tu cita en segundos</p>
   </div>
+  <!-- 5 pasos: servicio · sucursal · especialista · fecha y hora · datos -->
   <div class="pasos">
     <div class="paso on" data-p="1"></div><div class="paso" data-p="2"></div>
     <div class="paso" data-p="3"></div><div class="paso" data-p="4"></div>
+    <div class="paso" data-p="5"></div>
   </div>
   <div id="contenido"></div>
   <div class="pie">

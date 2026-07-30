@@ -4,8 +4,11 @@
 const API = "/reservar/api";
 const TZ = "America/Mexico_City";
 let paso = 1;
-let servicios = [], empleados = [];
-const sel = { servicio:null, empleado:null, empleadoNombre:"Cualquiera disponible", fecha:null, hora:null };
+let servicios = [], empleados = [], sucursales = [];
+// La sucursal es OBLIGATORIA: si queda vacía la cita entra sin sede y el
+// panel del salón no sabe dónde atenderla.
+const sel = { servicio:null, sucursal:null, sucursalNombre:"", empleado:null,
+              empleadoNombre:"Cualquiera disponible", fecha:null, hora:null };
 
 async function api(p, opts){ const r = await fetch(API+p, opts); if(!r.ok){ const e=await r.json().catch(()=>({})); throw new Error(e.detail||("HTTP "+r.status)); } return r.json(); }
 // Escapa texto para insertarlo de forma segura en HTML (evita XSS con nombres del salón)
@@ -33,18 +36,42 @@ async function pintarServicios(){
   }
   document.getElementById("lista").innerHTML = html;
 }
-function elegirServicio(id){ sel.servicio=id; sel.hora=null; pintarEmpleados(); }
+function elegirServicio(id){ sel.servicio=id; sel.hora=null; pintarSucursales(); }
+
+// ---------- Paso 2: sucursal (obligatorio) ----------
+async function pintarSucursales(){
+  paso=2; marcarPasos();
+  const c = document.getElementById("contenido");
+  c.innerHTML = `<div class="panel"><h2>¿En qué sucursal?</h2><p class="sub">Elige la que te quede más cerca.</p><div id="lista"></div>
+    <div class="nav"><button class="btn ghost" data-act="back" data-to="servicios">Atrás</button></div></div>`;
+  if(!sucursales.length) sucursales = await api("/sucursales");
+  document.getElementById("lista").innerHTML = sucursales.map(x=>
+    `<div class="opt ${sel.sucursal===x.id?'sel':''}" data-act="sucursal" data-id="${esc(x.id)}">
+      <div class="avatar">📍</div>
+      <div class="info"><div class="n">Sucursal ${esc(x.nombre)}</div>
+        <div class="meta">${esc(x.direccion||"Aguascalientes")}</div></div></div>`).join("");
+}
+function elegirSucursal(id){
+  const x = sucursales.find(v=>v.id===id);
+  sel.sucursal = id;
+  sel.sucursalNombre = x ? x.nombre : "";
+  // Cambiar de sede invalida la especialista elegida: no trabaja en las dos.
+  sel.empleado = null; sel.empleadoNombre = "Cualquiera disponible"; sel.hora = null;
+  pintarEmpleados();
+}
 
 // ---------- Paso 2: empleada ----------
 async function pintarEmpleados(){
-  paso=2; marcarPasos();
+  paso=3; marcarPasos();
   const c = document.getElementById("contenido");
-  c.innerHTML = `<div class="panel"><h2>Elige tu manicurista</h2><p class="sub">Opcional — puedes dejar que el salón asigne.</p><div id="lista"></div>
-    <div class="nav"><button class="btn ghost" data-act="back" data-to="servicios">Atrás</button></div></div>`;
+  c.innerHTML = `<div class="panel"><h2>Elige tu especialista</h2><p class="sub">Opcional — en ${esc(sel.sucursalNombre)}, puedes dejar que el salón asigne.</p><div id="lista"></div>
+    <div class="nav"><button class="btn ghost" data-act="back" data-to="sucursales">Atrás</button></div></div>`;
   if(!empleados.length) empleados = await api("/empleados");
+  // Solo el equipo de la sucursal elegida.
+  const equipo = empleados.filter(e => !sel.sucursal || e.sucursal_id === sel.sucursal);
   let html = `<div class="opt ${sel.empleado===null?'sel':''}" data-act="empleado">
       <div class="avatar">✨</div><div class="info"><div class="n">Cualquiera disponible</div><div class="meta">El salón asigna</div></div></div>`;
-  for(const e of empleados){
+  for(const e of equipo){
     html += `<div class="opt ${sel.empleado===e.id?'sel':''}" data-act="empleado" data-id="${esc(e.id)}">
       <div class="avatar">${esc(e.nombre[0])}</div><div class="info"><div class="n">${esc(e.nombre)}</div></div></div>`;
   }
@@ -61,7 +88,7 @@ function elegirEmpleado(id){
 
 // ---------- Paso 3: fecha y hora ----------
 function pintarFecha(){
-  paso=3; marcarPasos();
+  paso=4; marcarPasos();
   const c = document.getElementById("contenido");
   c.innerHTML = `<div class="panel"><h2>Fecha y hora</h2><p class="sub">Elige el día y un horario disponible.</p>
     <label>Día</label><input type="date" id="fecha" min="${hoyISO()}" value="${sel.fecha||hoyISO()}" data-act="fecha">
@@ -77,6 +104,7 @@ async function cargarSlots(){
   try{
     const q = new URLSearchParams({servicio_id:sel.servicio, fecha:sel.fecha});
     if(sel.empleado) q.set("empleado_id", sel.empleado);
+    else if(sel.sucursal) q.set("sucursal_id", sel.sucursal);
     const {slots} = await api("/disponibilidad?"+q.toString());
     if(!slots.length){ cont.innerHTML = `<div class="aviso">No hay horarios libres ese día 😕<br>Prueba con otra fecha.</div>`; return; }
     cont.innerHTML = `<div class="slots">${slots.map(h=>`<div class="slot" data-act="hora" data-h="${esc(h)}">${ampm(h)}</div>`).join("")}</div>`;
@@ -91,12 +119,12 @@ function elegirHora(h, el){
 
 // ---------- Paso 4: datos y confirmar ----------
 function pintarConfirmacion(){
-  paso=4; marcarPasos();
+  paso=5; marcarPasos();
   const s = servicios.find(x=>x.id===sel.servicio);
   const f = new Date(sel.fecha+"T12:00:00").toLocaleDateString("es-MX",{weekday:"long",day:"numeric",month:"long"});
   const c = document.getElementById("contenido");
   c.innerHTML = `<div class="panel"><h2>Confirma tu cita</h2><p class="sub">Solo faltan tus datos.</p>
-    <div class="resumen">💅 <b>${esc(s.nombre)}</b> (${esc(s.duracion_min)} min)<br>👩 ${esc(sel.empleadoNombre)}<br>📅 ${f}<br>🕒 ${ampm(sel.hora)}</div>
+    <div class="resumen">💅 <b>${esc(s.nombre)}</b> (${esc(s.duracion_min)} min)<br>📍 Sucursal ${esc(sel.sucursalNombre)}<br>👩 ${esc(sel.empleadoNombre)}<br>📅 ${f}<br>🕒 ${ampm(sel.hora)}</div>
     <label>Tu nombre</label><input type="text" id="nombre" placeholder="Ej. Mariana López">
     <label>Tu WhatsApp</label><input type="tel" id="telefono" placeholder="Ej. 6671234567">
     <div class="nav">
@@ -111,7 +139,8 @@ async function confirmar(){
   const btn = document.getElementById("btnOk"); btn.disabled=true; btn.textContent="Reservando...";
   try{
     await api("/reservar",{method:"POST",headers:{"Content-Type":"application/json"},
-      body:JSON.stringify({nombre,telefono,servicio_id:sel.servicio,empleado_id:sel.empleado,fecha:sel.fecha,hora:sel.hora})});
+      body:JSON.stringify({nombre,telefono,servicio_id:sel.servicio,sucursal_id:sel.sucursal,
+        empleado_id:sel.empleado,fecha:sel.fecha,hora:sel.hora})});
     pintarExito(nombre);
   }catch(e){ btn.disabled=false; btn.textContent="Confirmar cita"; alert(e.message); }
 }
@@ -130,10 +159,12 @@ document.addEventListener("click", function(e){
   if(!t) return;
   switch(t.dataset.act){
     case "servicio": elegirServicio(t.dataset.id); break;
+    case "sucursal": elegirSucursal(t.dataset.id); break;
     case "empleado": elegirEmpleado(t.dataset.id || null); break;
     case "hora": elegirHora(t.dataset.h, t); break;
     case "back":
       if(t.dataset.to==="servicios") pintarServicios();
+      else if(t.dataset.to==="sucursales") pintarSucursales();
       else if(t.dataset.to==="empleados") pintarEmpleados();
       else if(t.dataset.to==="fecha") pintarFecha();
       break;
