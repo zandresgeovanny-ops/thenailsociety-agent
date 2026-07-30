@@ -563,6 +563,17 @@ _PAGINA_HTML = """<!DOCTYPE html>
   .ag-fecha{min-width:auto; width:auto; margin:0}
   .ag-titulo{font-size:18px; text-transform:capitalize; margin:0 0 0 4px}
   .ag-hint{margin-left:14px; font-size:12.5px; color:var(--gris)}
+  /* Selector de sucursal de la agenda */
+  .ag-sedes{display:inline-flex; gap:3px; padding:3px; margin-left:10px;
+    background:var(--panel); border:1px solid var(--linea); border-radius:999px}
+  .ag-sede{padding:7px 18px; font-family:inherit; font-size:13px; font-weight:600;
+    color:var(--gris); background:transparent; border:none; border-radius:999px;
+    cursor:pointer; transition:background .2s, color .2s}
+  .ag-sede:hover{color:var(--tinta)}
+  .ag-sede.es-activa{color:var(--acento-sobre);
+    background:linear-gradient(135deg,var(--oro-claro),var(--oro));
+    box-shadow:0 3px 10px rgba(201,162,77,.32)}
+  @media(max-width:720px){ .ag-sedes{margin-left:0} .ag-sede{padding:6px 13px; font-size:12px} }
   .ag-zoom{margin-left:auto; display:flex; align-items:center; gap:4px;
     padding:3px; background:var(--panel); border:1px solid var(--linea); border-radius:999px}
   .ag-zbtn{width:29px; height:29px; display:grid; place-items:center;
@@ -702,6 +713,7 @@ _PAGINA_HTML = """<!DOCTYPE html>
       <button class="navbtn ag-nav" onclick="agendaDia(1)" title="Día siguiente">›</button>
       <button class="navbtn" onclick="agendaHoy()">Hoy</button>
       <h2 class="vtitulo ag-titulo" id="agendaTitulo"></h2>
+      <div class="ag-sedes" id="agSedes" role="group" aria-label="Sucursal"></div>
       <div class="ag-zoom" role="group" aria-label="Zoom de la agenda">
         <button class="ag-zbtn" onclick="agendaZoom(-1)" title="Alejar" aria-label="Alejar">−</button>
         <span class="ag-znivel" id="agZoomNivel">100%</span>
@@ -945,6 +957,10 @@ const MESES_AB = ["ene","feb","mar","abr","may","jun","jul","ago","sep","oct","n
 const ORIGEN_INFO = {web:{t:"Web",c:"o-web"}, whatsapp:{t:"WhatsApp",c:"o-wa"}, panel:{t:"Panel",c:"o-panel"}};
 function badgeOrigen(o){ const i = ORIGEN_INFO[o] || {t:o||"—",c:"o-otro"}; return `<span class="orig ${i.c}">${i.t}</span>`; }
 let filtro = "proximas", empleados = [], empleadosGestion = [], citas = [], registro = [], servicios = [], sucursales = [], sucFiltro = "", huella = "", esAdmin = true, rangoReg = "hoy";
+// Sucursal que se esta viendo en la AGENDA. Es aparte del filtro de la lista
+// de Citas: mezclar Norte y Sur en una sola rejilla da 16 columnas y nadie
+// entiende de quien es cada una. Se recuerda entre sesiones.
+let agSucursal = localStorage.getItem("agendaSucursal") || "";
 let modoModal = "crear", editId = null;
 let yo = null, agTurnos = null, agArrastrando = null, agendaFecha = null, reagId = null;
 let serviciosGestion = [], servEditId = null, resetEmpId = null;
@@ -1176,6 +1192,7 @@ function pintarNivelZoom(){
 
 async function abrirAgenda(){
   pintarNivelZoom();
+  pintarSedes();
   const inp = document.getElementById("agendaFecha");
   if(!inp.value) inp.value = hoyTZ();
   // El admin necesita la lista de empleadas y sus turnos (para columnas y sombreado)
@@ -1194,17 +1211,38 @@ function agendaDia(delta){
 }
 function agendaHoy(){ document.getElementById("agendaFecha").value = hoyTZ(); renderAgenda(); }
 
+function pintarSedes(){
+  const c = document.getElementById("agSedes");
+  if(!c) return;
+  // La empleada no elige sede: solo ve la suya. El selector se oculta.
+  if(!esAdmin || sucursales.length < 2){ c.innerHTML = ""; return; }
+  if(!sucursales.some(x => x.id === agSucursal)) agSucursal = sucursales[0].id;
+  c.innerHTML = sucursales.map(x =>
+    `<button class="ag-sede${x.id===agSucursal?" es-activa":""}" data-suc="${esc(x.id)}">${esc(x.nombre)}</button>`
+  ).join("");
+  c.querySelectorAll(".ag-sede").forEach(b => b.onclick = () => {
+    agSucursal = b.dataset.suc;
+    localStorage.setItem("agendaSucursal", agSucursal);
+    pintarSedes();
+    renderAgenda();
+  });
+}
+
 function renderAgenda(){
   if(agArrastrando) return;   // no redibujar a media maniobra
   const fecha = document.getElementById("agendaFecha").value || hoyTZ();
   agendaFecha = fecha;
+  const nomSede = (sucursales.find(x=>x.id===agSucursal)||{}).nombre;
   document.getElementById("agendaTitulo").textContent =
-    new Date(fecha+"T12:00:00").toLocaleDateString("es-MX",{weekday:"long",day:"numeric",month:"long"});
+    new Date(fecha+"T12:00:00").toLocaleDateString("es-MX",{weekday:"long",day:"numeric",month:"long"})
+    + (esAdmin && nomSede ? ` · ${nomSede}` : "");
 
   // Columnas: admin ve "Sin asignar" + cada empleada; la empleada solo su propia agenda
   let cols;
   if(esAdmin){
-    cols = [{id:"",nombre:"Sin asignar",sin:true}].concat(empleados.map(e=>({id:e.id,nombre:e.nombre})));
+    // Solo el equipo de la sucursal que se esta viendo.
+    const equipo = empleados.filter(e => !agSucursal || e.sucursal_id === agSucursal);
+    cols = [{id:"",nombre:"Sin asignar",sin:true}].concat(equipo.map(e=>({id:e.id,nombre:e.nombre})));
   }else if(yo && yo.empleado_id){
     cols = [{id:yo.empleado_id, nombre:yo.nombre || "Mi agenda"}];
   }else{
@@ -1218,7 +1256,9 @@ function renderAgenda(){
   }
 
   const dow = (new Date(fecha+"T12:00:00").getDay()+6)%7;   // 0=Lunes
-  const delDia = citas.filter(c => c.estado!=="cancelada" && partesTZ(c.inicia_en).fecha===fecha && (!sucFiltro || (c.sucursal_id||"")===sucFiltro));
+  // En la agenda manda agSucursal (el selector propio), no el filtro de Citas.
+  const sedeAg = esAdmin ? agSucursal : "";
+  const delDia = citas.filter(c => c.estado!=="cancelada" && partesTZ(c.inicia_en).fecha===fecha && (!sedeAg || (c.sucursal_id||"")===sedeAg));
   const total = (AG_FIN-AG_INI)*60*AG_PX;
 
   grid.innerHTML =
