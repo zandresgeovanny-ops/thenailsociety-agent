@@ -567,6 +567,8 @@ _PAGINA_HTML = """<!DOCTYPE html>
     background:transparent; border:none; border-radius:50%; cursor:pointer;
     transition:background .18s, color .18s}
   .ag-zbtn:hover{background:var(--acento); color:var(--acento-sobre)}
+  .ag-zbtn:disabled{opacity:.3; cursor:not-allowed}
+  .ag-zbtn:disabled:hover{background:transparent; color:var(--tinta)}
   .ag-zreset{font-size:13px}
   .ag-znivel{min-width:42px; text-align:center; font-size:11.5px; font-weight:700;
     font-variant-numeric:tabular-nums; color:var(--gris)}
@@ -582,17 +584,24 @@ _PAGINA_HTML = """<!DOCTYPE html>
   .ag-grid{min-width:max-content}
   .ag-cab{display:flex; position:sticky; top:0; z-index:6; background:rgba(255,255,255,.94); backdrop-filter:blur(6px); border-bottom:1px solid var(--linea)}
   .ag-gutter-cab{width:74px; flex:none}
-  .ag-col-cab{flex:1; min-width:150px; padding:12px 10px; text-align:center; font-weight:700; font-size:13.5px; border-left:1px solid var(--linea); white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
+  .ag-col-cab{flex:1 1 0; min-width:150px; max-width:340px; padding:12px 10px; text-align:center; font-weight:700; font-size:13.5px; border-left:1px solid var(--linea); white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
   .ag-col-cab.sin{color:var(--gris); font-weight:600}
   .ag-cuerpo{display:flex; position:relative}
   .ag-gutter{width:74px; flex:none; position:relative}
   /* Etiqueta de hora: tabular para que las cifras no bailen, y con ancho
      suficiente para "12:00 p.m." sin recortarse. */
+  /* A 40-60% las horas quedan a menos de 30px de distancia y se pisan:
+     se enseña una de cada dos. La rejilla de lineas se mantiene completa. */
+  .ag-comprimida .ag-hl:nth-child(even){display:none}
+  .ag-comprimida .ag-hl{font-size:11px}
   .ag-hl{position:absolute; right:10px; transform:translateY(-50%);
     font-size:11.5px; font-weight:600; font-variant-numeric:tabular-nums;
     letter-spacing:.01em; color:var(--gris); white-space:nowrap;
     background:var(--bg); padding:1px 3px; border-radius:4px}
-  .ag-col{flex:1; min-width:150px; position:relative; border-left:1px solid var(--linea)}
+  /* max-width: con una sola empleada (vista de Lupita) la columna se estiraba
+     a todo el ancho y las citas quedaban como barras enormes y vacias.
+     Acotada, se lee como una agenda de verdad. */
+  .ag-col{flex:1 1 0; min-width:150px; max-width:340px; position:relative; border-left:1px solid var(--linea)}
   .ag-col.sin{background:rgba(201,162,77,.05)}
   .ag-linea{position:absolute; left:0; right:0; border-top:1px solid var(--linea); opacity:.5}
   .ag-off{position:absolute; left:0; right:0; background:repeating-linear-gradient(45deg,rgba(160,140,90,.10),rgba(160,140,90,.10) 6px,transparent 6px,transparent 12px); pointer-events:none}
@@ -604,6 +613,18 @@ _PAGINA_HTML = """<!DOCTYPE html>
   .ag-cita .ag-h{font-size:11px; font-weight:700; opacity:.9}
   .ag-cita .ag-c{font-size:13px; font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
   .ag-cita .ag-s{font-size:11.5px; color:var(--gris); white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
+  /* ── Tallas de cita segun el alto disponible ───────────────────────────
+     El texto se adapta al hueco real en vez de desbordarse. El dato completo
+     siempre esta en el title (tooltip) y al tocar la cita. */
+  .ag-cita.ag-sm{padding:3px 7px; display:flex; align-items:center}
+  .ag-cita.ag-sm .ag-c{font-size:11.5px; line-height:1.1}
+  .ag-cita.ag-sm .ag-c b{font-variant-numeric:tabular-nums; margin-right:4px; opacity:.85}
+  .ag-cita.ag-xs{padding:0 6px; display:flex; align-items:center; border-radius:6px; border-left-width:3px}
+  .ag-cita.ag-xs .ag-c{font-size:10px; font-weight:700; line-height:1}
+  /* Al pasar el cursor, una cita comprimida se levanta sobre las demas para
+     poder leerla completa sin abrirla. */
+  .ag-cita.ag-xs:hover,.ag-cita.ag-sm:hover{z-index:8; min-height:34px; padding:4px 7px}
+  .ag-cita.ag-xs:hover .ag-c{font-size:11.5px; white-space:normal}
   .ag-cita.est-pendiente{border-left-color:var(--warn)}
   .ag-cita.est-confirmada{border-left-color:var(--ok)}
   .ag-cita.est-completada{border-left-color:var(--info); opacity:.62}
@@ -1100,11 +1121,18 @@ async function cargar(forzar){
 // ════════════════════════════════════════════════════════════
 // Agenda: calendario por día con arrastrar-y-soltar para reagendar
 // ════════════════════════════════════════════════════════════
-const AG_INI = 8, AG_FIN = 21, AG_SNAP = 15;   // 8am–9pm, ajuste a 15 min
-// Zoom de la agenda: pixeles por minuto. Se guarda para que la empleada no
-// tenga que reajustarlo cada vez que abre el panel.
-const AG_PX_MIN = 0.7, AG_PX_MAX = 3.2;
-let AG_PX = parseFloat(localStorage.getItem("agendaZoom")) || 1.15;
+// Franja visible ajustada al horario real del salon (abre 10, cierra 20).
+// Se deja media hora de margen a cada lado para citas que se alarguen.
+const AG_INI = 9, AG_FIN = 21, AG_SNAP = 15;   // 9am–9pm, ajuste a 15 min
+// Zoom de la agenda. Niveles FIJOS en vez de pasos sueltos, para que el
+// porcentaje que se muestra sea exacto (40%, 50%, 100%...) y no 61% u 78%.
+// 100% = 1.15 px/min, la escala original. El 40% deja el dia entero en
+// pantalla, util cuando una empleada solo tiene una columna.
+const AG_BASE = 1.15;
+const AG_NIVELES = [40, 50, 60, 75, 100, 130, 165, 200, 240, 280];
+let AG_NIVEL = parseInt(localStorage.getItem("agendaZoomNivel"), 10);
+if(!AG_NIVELES.includes(AG_NIVEL)) AG_NIVEL = 100;
+let AG_PX = AG_BASE * AG_NIVEL / 100;
 const _fmtTZ = new Intl.DateTimeFormat("en-CA",{timeZone:TZ,year:"numeric",month:"2-digit",day:"2-digit",hour:"2-digit",minute:"2-digit",hour12:false});
 function partesTZ(iso){
   const o = {};
@@ -1118,19 +1146,33 @@ function durCita(c){ return c.termina_en ? Math.max(15, Math.round((new Date(c.t
 function hoyTZ(){ return new Date().toLocaleDateString("en-CA",{timeZone:TZ}); }
 
 function agendaZoom(dir){
-  // dir: 1 acercar, -1 alejar, 0 restablecer. Se limita al rango util:
-  // por debajo de 0.7 las citas cortas quedan ilegibles y por encima de
-  // 3.2 el dia no cabe en pantalla.
-  AG_PX = dir === 0 ? 1.15 : Math.min(AG_PX_MAX, Math.max(AG_PX_MIN, AG_PX + dir*0.25));
-  localStorage.setItem("agendaZoom", AG_PX);
-  const n = document.getElementById("agZoomNivel");
-  if(n) n.textContent = Math.round(AG_PX/1.15*100) + "%";
+  // dir: 1 acercar, -1 alejar, 0 volver al 100%.
+  if(dir === 0){
+    AG_NIVEL = 100;
+  }else{
+    const i = AG_NIVELES.indexOf(AG_NIVEL);
+    AG_NIVEL = AG_NIVELES[Math.min(AG_NIVELES.length - 1, Math.max(0, i + dir))];
+  }
+  AG_PX = AG_BASE * AG_NIVEL / 100;
+  localStorage.setItem("agendaZoomNivel", AG_NIVEL);
+  pintarNivelZoom();
   renderAgenda();
 }
 
-async function abrirAgenda(){
+function pintarNivelZoom(){
   const n = document.getElementById("agZoomNivel");
-  if(n) n.textContent = Math.round(AG_PX/1.15*100) + "%";
+  if(n) n.textContent = AG_NIVEL + "%";
+  // Se apagan los botones al llegar al extremo, para que se vea que no hay más.
+  const menos = document.querySelector('.ag-zbtn[onclick="agendaZoom(-1)"]');
+  const mas   = document.querySelector('.ag-zbtn[onclick="agendaZoom(1)"]');
+  if(menos) menos.disabled = AG_NIVEL === AG_NIVELES[0];
+  if(mas)   mas.disabled   = AG_NIVEL === AG_NIVELES[AG_NIVELES.length - 1];
+  // A partir del 60% las etiquetas de hora se pisan: se muestran cada 2 horas.
+  document.getElementById("agendaGrid")?.classList.toggle("ag-comprimida", AG_NIVEL <= 60);
+}
+
+async function abrirAgenda(){
+  pintarNivelZoom();
   const inp = document.getElementById("agendaFecha");
   if(!inp.value) inp.value = hoyTZ();
   // El admin necesita la lista de empleadas y sus turnos (para columnas y sombreado)
@@ -1220,10 +1262,24 @@ function agBloque(c){
   if(top < 0){ h += top; top = 0; }                 // recortar si empieza antes del rango visible
   if(top + h > total) h = total - top;
   const t = fmt(c.inicia_en);
-  return `<div class="ag-cita est-${c.estado}" draggable="true" data-id="${c.id}" data-dur="${dur}"
-      style="top:${top}px;height:${Math.max(h,20)}px" onclick="abrirReagendar('${c.id}')"
-      title="${esc(c.cliente)} · ${esc(c.servicio)} · ${t.h}">
-      <div class="ag-h">${t.h}</div><div class="ag-c">${esc(c.cliente)}</div><div class="ag-s">${esc(c.servicio)}</div></div>`;
+  // El alto REAL manda: antes se forzaba un minimo de 20px, y una cita de 30
+  // min con zoom bajo acababa midiendo mas que su duracion y se montaba
+  // encima de la siguiente. Ahora el minimo es 13px (suficiente para poder
+  // tocarla) y en cambio se ADAPTA el contenido al alto que hay.
+  const alto = Math.max(h, 13);
+  //  <26px  -> solo el nombre, en una linea
+  //  <46px  -> hora y nombre, sin servicio
+  //  >=46px -> las tres lineas
+  const talla = alto < 26 ? "ag-xs" : (alto < 46 ? "ag-sm" : "");
+  const cuerpo = alto < 26
+    ? `<div class="ag-c">${esc(c.cliente)}</div>`
+    : (alto < 46
+        ? `<div class="ag-c"><b>${t.h}</b> ${esc(c.cliente)}</div>`
+        : `<div class="ag-h">${t.h}</div><div class="ag-c">${esc(c.cliente)}</div><div class="ag-s">${esc(c.servicio)}</div>`);
+  return `<div class="ag-cita est-${c.estado} ${talla}" draggable="true" data-id="${c.id}" data-dur="${dur}"
+      style="top:${top}px;height:${alto}px" onclick="abrirReagendar('${c.id}')"
+      title="${esc(c.cliente)} · ${esc(c.servicio)} · ${t.h} (${dur} min)">
+      ${cuerpo}</div>`;
 }
 
 // ---- Arrastrar y soltar ----
