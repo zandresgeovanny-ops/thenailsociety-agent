@@ -350,6 +350,9 @@ async def api_mover_cita(cita_id: str, payload: dict, user: dict = Depends(requi
         ok = await mover_cita(cita_id, inicia_en, **kwargs)
     except IntegrityError:
         raise HTTPException(status_code=409, detail="Ese horario se encima con otra cita de la misma empleada.")
+    except ValueError as e:
+        # Fuera del turno de la empleada (mover_cita explica el motivo exacto).
+        raise HTTPException(status_code=409, detail=str(e))
     if not ok:
         raise HTTPException(status_code=404, detail="Cita no encontrada")
     return {"ok": True}
@@ -1296,18 +1299,53 @@ function agEnlazarDrag(){
   document.querySelectorAll("#agendaGrid .ag-col").forEach(col=>{
     col.addEventListener("dragover", e=>{ if(!agArrastrando) return; e.preventDefault(); e.dataTransfer.dropEffect="move"; agGhost(col, e); });
     col.addEventListener("dragleave", e=>{ if(e.target===col) agLimpiarGhost(); });
-    col.addEventListener("drop", e=>{ if(!agArrastrando) return; e.preventDefault(); agSoltar(col.dataset.emp, agMinDesdeY(col, e)); });
+    col.addEventListener("drop", e=>{
+      if(!agArrastrando) return;
+      e.preventDefault();
+      const min = agMinDesdeY(col, e);
+      if(min === null){
+        agLimpiarGhost();
+        toast("Ese servicio no cabe en el turno de esa especialista","err");
+        return;
+      }
+      agSoltar(col.dataset.emp, min);
+    });
   });
 }
+// Dia de la semana de la agenda abierta, en el formato de horarios_empleado
+// (0 = lunes). Misma formula que usa renderAgenda.
+function agDiaSemana(){
+  const f = document.getElementById("agendaFecha").value || hoyTZ();
+  return (new Date(f+"T12:00:00").getDay()+6)%7;
+}
+
+// Limites reales de la columna: el turno de la empleada ese dia. Si no se
+// conoce su turno, se cae a la franja visible de la agenda.
+function agLimites(col){
+  const t = agTurnos && agTurnos[col.dataset.emp];
+  const dow = agDiaSemana();
+  if(t && t.dias && t.dias.includes(dow) && t.hora_inicio && t.hora_fin){
+    return { ini: hm(t.hora_inicio), fin: hm(t.hora_fin) };
+  }
+  return { ini: AG_INI*60, fin: AG_FIN*60 };
+}
+
 function agMinDesdeY(col, e){
   const r = col.getBoundingClientRect();
   const dur = agArrastrando ? agArrastrando.dur : 60;
+  const L = agLimites(col);
   let min = AG_INI*60 + Math.round(((e.clientY - r.top)/AG_PX)/AG_SNAP)*AG_SNAP;
-  return Math.max(AG_INI*60, Math.min(min, AG_FIN*60 - dur));
+  // La cita debe CABER COMPLETA dentro del turno: se acota por su fin, no por
+  // su inicio. Un servicio de 90 min a las 19:00 acabaria a las 20:30, con el
+  // salon cerrado — el tope real es fin - duracion.
+  const tope = L.fin - dur;
+  if(tope < L.ini) return null;   // el turno es mas corto que el servicio
+  return Math.max(L.ini, Math.min(min, tope));
 }
 function agGhost(col, e){
   agLimpiarGhost();
   const min = agMinDesdeY(col, e), dur = agArrastrando ? agArrastrando.dur : 60;
+  if(min === null) return;
   const g = document.createElement("div");
   g.className = "ag-ghost";
   g.style.top = ((min - AG_INI*60)*AG_PX)+"px";

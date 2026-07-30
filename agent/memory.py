@@ -925,8 +925,44 @@ async def mover_cita(
                 if servicio:
                     duracion = timedelta(minutes=servicio.duracion_min)
 
+        termina_en = inicia_en + duracion
+
+        # ── La cita tiene que CABER en el turno de la empleada ────────────
+        # No basta con empezar antes del cierre: un servicio de 90 min a las
+        # 19:00 acabaría a las 20:30 con el salón cerrado. Se valida aquí y no
+        # solo en el navegador, porque el arrastre es interfaz y esto es la
+        # regla del negocio.
+        destino = empleado_id if empleado_id != _MANTENER else (
+            str(cita.empleado_id) if cita.empleado_id else None
+        )
+        if destino:
+            local_ini = inicia_en.astimezone(ZONA_SALON)
+            local_fin = termina_en.astimezone(ZONA_SALON)
+            dia_semana = local_ini.weekday()  # 0 = lunes, igual que horarios_empleado
+            turno = (
+                await session.execute(
+                    select(HorarioEmpleado)
+                    .where(HorarioEmpleado.empleado_id == uuid.UUID(destino))
+                    .where(HorarioEmpleado.dia_semana == dia_semana)
+                )
+            ).scalars().first()
+
+            if turno is None:
+                raise ValueError("Esa especialista no trabaja ese día.")
+            if local_ini.time() < turno.hora_inicio:
+                raise ValueError(
+                    f"El turno empieza a las {turno.hora_inicio.strftime('%H:%M')}."
+                )
+            # Cruzar la medianoche no aplica en un salón: si el fin cae en otro
+            # día, la cita se sale del turno igualmente.
+            if local_fin.date() != local_ini.date() or local_fin.time() > turno.hora_fin:
+                raise ValueError(
+                    f"La cita terminaría a las {local_fin.strftime('%H:%M')} y el "
+                    f"turno cierra a las {turno.hora_fin.strftime('%H:%M')}."
+                )
+
         cita.inicia_en = inicia_en
-        cita.termina_en = inicia_en + duracion
+        cita.termina_en = termina_en
         if empleado_id != _MANTENER:
             cita.empleado_id = uuid.UUID(empleado_id) if empleado_id else None
         await session.commit()
