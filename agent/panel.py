@@ -1117,7 +1117,7 @@ function hm(s){ const [h,m]=s.split(":").map(Number); return h*60+(m||0); }
 function durCita(c){ return c.termina_en ? Math.max(15, Math.round((new Date(c.termina_en)-new Date(c.inicia_en))/60000)) : 60; }
 function hoyTZ(){ return new Date().toLocaleDateString("en-CA",{timeZone:TZ}); }
 
-async function agendaZoom(dir){
+function agendaZoom(dir){
   // dir: 1 acercar, -1 alejar, 0 restablecer. Se limita al rango util:
   // por debajo de 0.7 las citas cortas quedan ilegibles y por encima de
   // 3.2 el dia no cabe en pantalla.
@@ -1128,7 +1128,7 @@ async function agendaZoom(dir){
   renderAgenda();
 }
 
-function abrirAgenda(){
+async function abrirAgenda(){
   const n = document.getElementById("agZoomNivel");
   if(n) n.textContent = Math.round(AG_PX/1.15*100) + "%";
   const inp = document.getElementById("agendaFecha");
